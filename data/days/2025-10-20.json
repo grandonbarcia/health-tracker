@@ -1,38 +1,30 @@
 [
   {
-    "name": "apple",
+    "name": "beef (ground, 100g cooked)",
     "qty": 1
   },
   {
-    "name": "orange",
+    "name": "mexican rice",
     "qty": 1
   },
   {
-    "name": "banana",
+    "name": "refried beans",
     "qty": 1
   },
   {
-    "name": "lemon juice",
+    "name": "onion",
+    "qty": 0.1
+  },
+  {
+    "name": "flour tortilla",
     "qty": 1
   },
   {
-    "name": "egg (large)",
-    "qty": 4
+    "name": "string cheese",
+    "qty": 2
   },
   {
-    "name": "broccoli",
-    "qty": 1
-  },
-  {
-    "name": "cauliflower",
-    "qty": 1
-  },
-  {
-    "name": "carrot",
-    "qty": 1
-  },
-  {
-    "name": "potato",
-    "qty": 1
+    "name": "cilantro",
+    "qty": 0.5
   }
 ]
