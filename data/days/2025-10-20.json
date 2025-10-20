@@ -1,0 +1,38 @@
+[
+  {
+    "name": "apple",
+    "qty": 1
+  },
+  {
+    "name": "orange",
+    "qty": 1
+  },
+  {
+    "name": "banana",
+    "qty": 1
+  },
+  {
+    "name": "lemon juice",
+    "qty": 1
+  },
+  {
+    "name": "egg (large)",
+    "qty": 4
+  },
+  {
+    "name": "broccoli",
+    "qty": 1
+  },
+  {
+    "name": "cauliflower",
+    "qty": 1
+  },
+  {
+    "name": "carrot",
+    "qty": 1
+  },
+  {
+    "name": "potato",
+    "qty": 1
+  }
+]
