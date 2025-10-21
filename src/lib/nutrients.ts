@@ -1148,6 +1148,23 @@ export function combineProfilesWithQty(items: ItemWithQty[]) {
   return total as Record<keyof typeof RDI, number>;
 }
 
+// Grouped meals for a day
+export type DayMeals = {
+  breakfast: ItemWithQty[];
+  lunch: ItemWithQty[];
+  dinner: ItemWithQty[];
+};
+
+// Combine a DayMeals object into nutrient totals (flattens meals)
+export function combineDayMealsWithQty(meals: DayMeals) {
+  const flat: ItemWithQty[] = [
+    ...(meals?.breakfast ?? []),
+    ...(meals?.lunch ?? []),
+    ...(meals?.dinner ?? []),
+  ];
+  return combineProfilesWithQty(flat);
+}
+
 // Human-friendly display names and units for each nutrient (metric-oriented)
 export const NUTRIENT_DISPLAY: Record<string, string> = {
   calories: 'Calories',

@@ -15,8 +15,13 @@ export async function GET(req: Request) {
     const file = path.join(process.cwd(), 'data', 'days', `${date}.json`);
     try {
       const raw = await fs.readFile(file, 'utf8');
-      const items = JSON.parse(raw || '[]');
-      return NextResponse.json({ ok: true, items });
+      const parsed = JSON.parse(raw || '[]');
+      // support legacy format where file is an array of ItemWithQty
+      if (Array.isArray(parsed)) {
+        return NextResponse.json({ ok: true, items: parsed });
+      }
+      // otherwise expect the new DayMeals shape
+      return NextResponse.json({ ok: true, items: parsed });
     } catch (e) {
       return NextResponse.json({ ok: true, items: [] });
     }

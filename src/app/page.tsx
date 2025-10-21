@@ -4,10 +4,12 @@ import {
   FOOD_DB,
   RDI,
   combineProfilesWithQty,
+  combineDayMealsWithQty,
   NUTRIENT_KEYS,
   NUTRIENT_DISPLAY,
   NUTRIENT_UNITS,
   ItemWithQty,
+  DayMeals,
 } from '../lib/nutrients';
 import NutrientChart from '../components/NutrientChart';
 
@@ -21,12 +23,17 @@ export default function Home() {
 
   // Calendar / daily tracking state
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [dayItems, setDayItems] = useState<Record<string, ItemWithQty[]>>({});
+  // dayItems now stores DayMeals per date. For backward compatibility the
+  // server/localStorage may still contain an array of ItemWithQty; we
+  // normalize when loading.
+  const [dayItems, setDayItems] = useState<Record<string, DayMeals>>({});
 
   // totals for the currently-open day (if any)
   const dayTotals = useMemo(() => {
     if (!selectedDate) return null;
-    return combineProfilesWithQty(dayItems[selectedDate] ?? []);
+    const meals = dayItems[selectedDate];
+    if (!meals) return null;
+    return combineDayMealsWithQty(meals);
   }, [selectedDate, dayItems]);
 
   // displayedTotals: use dayTotals when a day is selected, otherwise the global totals
@@ -51,7 +58,19 @@ export default function Home() {
         const json = await res.json();
         if (cancelled) return;
         if (json && json.ok) {
-          setDayItems((s) => ({ ...s, [selectedDate]: json.items ?? [] }));
+          // normalize legacy array shape -> DayMeals
+          const items = json.items;
+          let meals: DayMeals;
+          if (Array.isArray(items)) {
+            meals = { breakfast: [], lunch: [], dinner: items };
+          } else {
+            meals = {
+              breakfast: items?.breakfast ?? [],
+              lunch: items?.lunch ?? [],
+              dinner: items?.dinner ?? [],
+            };
+          }
+          setDayItems((s) => ({ ...s, [selectedDate]: meals }));
         }
       } catch (e) {
         // ignore; localStorage already has data
@@ -224,7 +243,7 @@ export function Calendar({
   entries,
 }: {
   onSelectDate: (iso: string) => void;
-  entries: Record<string, ItemWithQty[]>;
+  entries: Record<string, DayMeals>;
 }) {
   const today = new Date();
   const start = startOfMonth(today);
@@ -257,7 +276,12 @@ export function Calendar({
             disabled={!c.iso}
             onClick={() => c.iso && onSelectDate(c.iso)}
             className={`h-20 p-2 text-left rounded border flex flex-col justify-between hover:shadow ${
-              c.iso && entries[c.iso] && entries[c.iso].length > 0
+              c.iso &&
+              entries[c.iso] &&
+              (entries[c.iso].breakfast?.length || 0) +
+                (entries[c.iso].lunch?.length || 0) +
+                (entries[c.iso].dinner?.length || 0) >
+                0
                 ? 'bg-green-50'
                 : 'bg-white'
             }`}
@@ -272,7 +296,11 @@ export function Calendar({
             <div className="text-lg font-semibold">{c.label}</div>
             <div className="text-[11px] text-muted-foreground">
               {c.iso && entries[c.iso]
-                ? `${entries[c.iso].length} item(s)`
+                ? `${
+                    (entries[c.iso].breakfast?.length || 0) +
+                    (entries[c.iso].lunch?.length || 0) +
+                    (entries[c.iso].dinner?.length || 0)
+                  } item(s)`
                 : ''}
             </div>
           </button>
@@ -289,30 +317,52 @@ export function DayEditor({
   onSave,
 }: {
   date: string;
-  initialItems: ItemWithQty[];
+  initialItems: DayMeals;
   onClose: () => void;
-  onSave: (items: ItemWithQty[]) => void;
+  onSave: (items: DayMeals) => void;
 }) {
-  const [localItems, setLocalItems] = useState<ItemWithQty[]>(initialItems);
+  const [localItems, setLocalItems] = useState<DayMeals>(
+    initialItems ?? { breakfast: [], lunch: [], dinner: [] }
+  );
   const [query, setQuery] = useState('');
   const [saved, setSaved] = useState(false);
   const [selIdx, setSelIdx] = useState(-1);
   const available = useMemo(() => Object.keys(FOOD_DB), []);
 
-  useEffect(() => setLocalItems(initialItems), [initialItems]);
+  useEffect(
+    () =>
+      setLocalItems(initialItems ?? { breakfast: [], lunch: [], dinner: [] }),
+    [initialItems]
+  );
+
+  // default target meal selection
+  const [targetMeal, setTargetMeal] = useState<
+    'breakfast' | 'lunch' | 'dinner'
+  >('breakfast');
 
   function addFoodToDay(name: string) {
-    setLocalItems((s) => [...s, { name, qty: 1 }]);
+    setLocalItems((s) => ({
+      ...s,
+      [targetMeal]: [...(s[targetMeal] ?? []), { name, qty: 1 }],
+    }));
     setQuery('');
     setSelIdx(-1);
   }
 
-  function removeAt(i: number) {
-    setLocalItems((s) => s.filter((_, idx) => idx !== i));
+  function removeAt(meal: keyof DayMeals, i: number) {
+    setLocalItems((s) => ({
+      ...s,
+      [meal]: (s[meal] ?? []).filter((_, idx) => idx !== i),
+    }));
   }
 
-  function updateQty(i: number, qty: number) {
-    setLocalItems((s) => s.map((it, idx) => (idx === i ? { ...it, qty } : it)));
+  function updateQty(meal: keyof DayMeals, i: number, qty: number) {
+    setLocalItems((s) => ({
+      ...s,
+      [meal]: (s[meal] ?? []).map((it, idx) =>
+        idx === i ? { ...it, qty } : it
+      ),
+    }));
   }
 
   const suggestions = useMemo(() => {
@@ -369,6 +419,16 @@ export function DayEditor({
 
       <div>
         <div className="flex gap-2 mb-2">
+          <select
+            value={targetMeal}
+            onChange={(e) => setTargetMeal(e.target.value as any)}
+            className="rounded border px-3 py-2"
+            aria-label="Select meal to add to"
+          >
+            <option value="breakfast">Breakfast</option>
+            <option value="lunch">Lunch</option>
+            <option value="dinner">Dinner</option>
+          </select>
           <input
             className="flex-1 rounded border px-3 py-2"
             value={query}
@@ -436,37 +496,50 @@ export function DayEditor({
 
         <div>
           <h5 className="font-medium mb-2">Foods</h5>
-          <ul className="space-y-2">
-            {localItems.map((it, i) => (
-              <li key={i} className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <span className="min-w-[160px]">{it.name}</span>
-                  <label className="text-sm">Qty</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.25}
-                    value={it.qty}
-                    onChange={(e) => updateQty(i, Number(e.target.value))}
-                    className="w-20 rounded border px-2 py-1"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    className="text-sm text-red-600"
-                    onClick={() => removeAt(i)}
-                  >
-                    Remove
-                  </button>
-                </div>
-              </li>
-            ))}
-            {localItems.length === 0 && (
-              <div className="text-sm text-muted-foreground">
-                No foods logged for this day.
+          <div className="grid gap-4">
+            {(['breakfast', 'lunch', 'dinner'] as const).map((meal) => (
+              <div key={meal}>
+                <h6 className="font-medium capitalize">{meal}</h6>
+                <ul className="space-y-2 mt-2">
+                  {(localItems[meal] ?? []).map((it, i) => (
+                    <li
+                      key={i}
+                      className="flex items-center justify-between gap-4"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="min-w-[160px]">{it.name}</span>
+                        <label className="text-sm">Qty</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.25}
+                          value={it.qty}
+                          onChange={(e) =>
+                            updateQty(meal, i, Number(e.target.value))
+                          }
+                          className="w-20 rounded border px-2 py-1"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          className="text-sm text-red-600"
+                          onClick={() => removeAt(meal, i)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+
+                  {(localItems[meal] ?? []).length === 0 && (
+                    <div className="text-sm text-muted-foreground">
+                      No items
+                    </div>
+                  )}
+                </ul>
               </div>
-            )}
-          </ul>
+            ))}
+          </div>
         </div>
       </div>
     </div>
