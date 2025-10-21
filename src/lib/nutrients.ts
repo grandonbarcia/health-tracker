@@ -237,6 +237,24 @@ export const FOOD_DB: Record<string, NutrientProfile> = {
     cholesterol: 0,
     serving: '1/4 cup chopped',
   },
+  'al pastor taco': {
+    // approximate per 1 street-style taco (half of the 2-taco entry)
+    calories: 210,
+    protein: 14,
+    carbs: 17,
+    fat: 10,
+    fiber: 1.5,
+    sugar: 2,
+    sodium: 390,
+    calcium: 30,
+    iron: 1.6,
+    potassium: 325,
+    vitaminC: 2.5,
+    vitaminA: 50,
+    vitaminD: 0.1,
+    cholesterol: 65,
+    serving: '1 taco (street-style)',
+  },
   'flour tortilla': {
     // approximate per 1 medium (6") flour tortilla
     calories: 140,
