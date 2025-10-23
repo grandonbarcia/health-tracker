@@ -328,6 +328,9 @@ export function DayEditor({
   const [saved, setSaved] = useState(false);
   const [selIdx, setSelIdx] = useState(-1);
   const available = useMemo(() => Object.keys(FOOD_DB), []);
+  // cache for remote-loaded profiles (id -> profile object)
+  const [profileCache, setProfileCache] = useState<Record<string, any>>({});
+  const [remoteSuggestions, setRemoteSuggestions] = useState<string[]>([]);
 
   useEffect(
     () =>
@@ -341,6 +344,28 @@ export function DayEditor({
   >('breakfast');
 
   function addFoodToDay(name: string) {
+    const key = name.toLowerCase();
+    // Fetch profile asynchronously and cache it; still optimistically add the item
+    (async () => {
+      try {
+        if (!profileCache[key]) {
+          const res = await fetch(`/api/food/${encodeURIComponent(key)}`);
+          if (res.ok) {
+            const profile = await res.json();
+            setProfileCache((c) => ({ ...c, [key]: profile }));
+            // Also add to runtime FOOD_DB so combine functions pick it up
+            try {
+              (FOOD_DB as any)[key] = profile;
+            } catch (e) {
+              // ignore if immutable
+            }
+          }
+        }
+      } catch (e) {
+        // ignore -- fallback to local FOOD_DB entry if present
+      }
+    })();
+
     setLocalItems((s) => ({
       ...s,
       [targetMeal]: [...(s[targetMeal] ?? []), { name, qty: 1 }],
@@ -366,10 +391,42 @@ export function DayEditor({
   }
 
   const suggestions = useMemo(() => {
+    // prefer remote suggestions when available; fallback to local filter
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    return available.filter((a) => a.includes(q)).slice(0, 8);
-  }, [available, query]);
+    if (remoteSuggestions && remoteSuggestions.length > 0) {
+      return remoteSuggestions.slice(0, 8);
+    }
+    return available.filter((a) => a.includes(q)).slice(0, 4);
+  }, [available, query, remoteSuggestions]);
+
+  // async suggestions from server
+  useEffect(() => {
+    let mounted = true;
+    const q = query.trim();
+    if (!q) return;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/search-foods?q=${encodeURIComponent(q)}&limit=8`
+        );
+        if (!mounted) return;
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+        // data may be array of ids or objects
+        const suggestions = data.map((d: any) =>
+          typeof d === 'string' ? d : d.id || d.name
+        );
+        if (mounted) setRemoteSuggestions(suggestions);
+      } catch (e) {
+        // keep local suggestions
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [query]);
 
   const exactMatch = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -379,7 +436,10 @@ export function DayEditor({
 
   useEffect(() => {
     setSelIdx(-1);
-  }, [query, suggestions.length]);
+  }, [query, remoteSuggestions.length]);
+
+  // effective suggestions: prefer remote (server) suggestions when available
+  const effectiveSuggestions = remoteSuggestions && remoteSuggestions.length > 0 ? remoteSuggestions : suggestions;
 
   return (
     <div className="mt-4 border rounded p-4 bg-white/60">
@@ -437,14 +497,14 @@ export function DayEditor({
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                setSelIdx((s) => Math.min(s + 1, suggestions.length - 1));
+                setSelIdx((s) => Math.min(s + 1, effectiveSuggestions.length - 1));
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 setSelIdx((s) => Math.max(s - 1, 0));
               } else if (e.key === 'Enter') {
                 e.preventDefault();
-                if (selIdx >= 0 && suggestions[selIdx]) {
-                  addFoodToDay(suggestions[selIdx]);
+                if (selIdx >= 0 && effectiveSuggestions[selIdx]) {
+                  addFoodToDay(effectiveSuggestions[selIdx]);
                 } else if (exactMatch) {
                   addFoodToDay(exactMatch);
                 }
@@ -466,7 +526,7 @@ export function DayEditor({
             {exactMatch ? 'Quick Add' : 'Add'}
           </button>
         </div>
-        {query.trim() !== '' && suggestions.length > 0 && (
+        {query.trim() !== '' && effectiveSuggestions.length > 0 && (
           <div
             className="grid gap-1 mb-3"
             role="listbox"
@@ -476,7 +536,7 @@ export function DayEditor({
               selIdx >= 0 ? `day-food-option-${selIdx}` : undefined
             }
           >
-            {suggestions.map((s, i) => (
+            {effectiveSuggestions.map((s, i) => (
               <div
                 key={s}
                 id={`day-food-option-${i}`}
