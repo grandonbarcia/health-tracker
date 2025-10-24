@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+import { supabaseServer } from '../../../lib/supabaseServer';
 
 export async function POST(req: Request) {
   try {
@@ -15,24 +14,16 @@ export async function POST(req: Request) {
     // normalize body to DayMeals. Support legacy array shape: items: ItemWithQty[]
     let payload = body.items;
     if (!payload) payload = { breakfast: [], lunch: [], dinner: [] };
-
-    // legacy: if payload is an array, migrate into dinner by default
     if (Array.isArray(payload)) {
       payload = { breakfast: [], lunch: [], dinner: payload };
     }
 
-    const dataDir = path.join(process.cwd(), 'data', 'days');
-    await fs.mkdir(dataDir, { recursive: true });
-    const file = path.join(dataDir, `${date}.json`);
-    await fs.writeFile(
-      file,
-      JSON.stringify(
-        payload ?? { breakfast: [], lunch: [], dinner: [] },
-        null,
-        2
-      ),
-      'utf8'
-    );
+    // upsert into Supabase 'days' table
+    const { error } = await supabaseServer
+      .from('days')
+      .upsert({ date, data: payload }, { onConflict: 'date' });
+    if (error) throw error;
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(

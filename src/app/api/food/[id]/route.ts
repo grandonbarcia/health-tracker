@@ -5,7 +5,9 @@ export async function GET(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const id = params.id;
+  // params may be a promise in some runtime shapes; await to be safe
+  const resolvedParams = await params;
+  const id = resolvedParams.id;
   try {
     const data = await getFoodById(id);
     if (!data)

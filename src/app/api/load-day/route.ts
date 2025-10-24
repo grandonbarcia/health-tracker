@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+import { supabaseServer } from '../../../lib/supabaseServer';
 
 export async function GET(req: Request) {
   try {
@@ -12,19 +11,22 @@ export async function GET(req: Request) {
         { status: 400 }
       );
 
-    const file = path.join(process.cwd(), 'data', 'days', `${date}.json`);
-    try {
-      const raw = await fs.readFile(file, 'utf8');
-      const parsed = JSON.parse(raw || '[]');
-      // support legacy format where file is an array of ItemWithQty
-      if (Array.isArray(parsed)) {
-        return NextResponse.json({ ok: true, items: parsed });
-      }
-      // otherwise expect the new DayMeals shape
-      return NextResponse.json({ ok: true, items: parsed });
-    } catch (e) {
-      return NextResponse.json({ ok: true, items: [] });
+    const { data, error } = await supabaseServer
+      .from('days')
+      .select('data')
+      .eq('date', date)
+      .maybeSingle();
+
+    if (error) {
+      // if no row found, return empty meals
+      return NextResponse.json({
+        ok: true,
+        items: { breakfast: [], lunch: [], dinner: [] },
+      });
     }
+
+    const items = data?.data ?? { breakfast: [], lunch: [], dinner: [] };
+    return NextResponse.json({ ok: true, items });
   } catch (err) {
     return NextResponse.json(
       { ok: false, error: String(err) },
