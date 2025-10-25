@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getFoodById } from '../../../../lib/db';
 
-export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: Request, { params }: { params: any }) {
   // params may be a promise in some runtime shapes; await to be safe
   const resolvedParams = await params;
-  const id = resolvedParams.id;
+  const id = (resolvedParams as any).id;
   try {
     const data = await getFoodById(id);
     if (!data)

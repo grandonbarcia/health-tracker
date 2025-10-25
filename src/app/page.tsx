@@ -12,6 +12,13 @@ import {
   DayMeals,
 } from '../lib/nutrients';
 import NutrientChart from '../components/NutrientChart';
+import AuthForm from '../components/AuthForm';
+import { supabase } from '../lib/supabaseClient';
+import {
+  getDayMeals,
+  setDayItems as persistDayItems,
+  getOrCreateDayForUser,
+} from '../lib/user';
 
 export default function Home() {
   const [items, setItems] = useState<ItemWithQty[]>([]);
@@ -52,8 +59,49 @@ export default function Home() {
   useEffect(() => {
     if (!selectedDate) return;
     let cancelled = false;
+
     (async () => {
       try {
+        // If user is authenticated, load their per-user day meals from Supabase
+        const { data: sessionData } = await supabase.auth.getSession();
+        const user = (sessionData as any).session?.user ?? null;
+
+        if (user) {
+          const { day, meals } = await getDayMeals(selectedDate);
+          if (cancelled) return;
+
+          // If localStorage has items for this date and they differ from server, offer import
+          try {
+            const raw = localStorage.getItem('foodLog');
+            if (raw) {
+              const local = JSON.parse(raw || '{}') as Record<string, DayMeals>;
+              const localForDate = local[selectedDate];
+              const serverJson = JSON.stringify(
+                meals || { breakfast: [], lunch: [], dinner: [] }
+              );
+              const localJson = JSON.stringify(localForDate || {});
+              if (localForDate && localJson !== serverJson) {
+                const doImport = window.confirm(
+                  'You have local entries for this date. Import them into your account and overwrite server data?'
+                );
+                if (doImport) {
+                  // ensure day exists and persist
+                  const created = await getOrCreateDayForUser(selectedDate);
+                  await persistDayItems(created.id, localForDate);
+                  setDayItems((s) => ({ ...s, [selectedDate]: localForDate }));
+                  return;
+                }
+              }
+            }
+          } catch (e) {
+            // ignore local storage parsing errors
+          }
+
+          setDayItems((s) => ({ ...s, [selectedDate]: meals }));
+          return;
+        }
+
+        // fallback: older server API or localStorage
         const res = await fetch(`/api/load-day?date=${selectedDate}`);
         const json = await res.json();
         if (cancelled) return;
@@ -105,7 +153,12 @@ export default function Home() {
   return (
     <div className="min-h-screen p-8 sm:p-12">
       <header className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-semibold mb-2">Food Nutrient Combiner</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold mb-2">
+            Food Nutrient Combiner
+          </h1>
+          <AuthForm />
+        </div>
         <p className="mb-4 text-sm text-muted-foreground">
           Add foods from the food pyramid to calculate combined nutrients and
           compare to RDI.
@@ -131,7 +184,22 @@ export default function Home() {
               onSave={async (itemsForDay) => {
                 // update local state
                 setDayItems((s) => ({ ...s, [selectedDate]: itemsForDay }));
-                // try to persist to server
+
+                // If user signed in, persist to per-user tables via helper
+                try {
+                  const { data: sessionData } =
+                    await supabase.auth.getSession();
+                  const user = (sessionData as any).session?.user ?? null;
+                  if (user) {
+                    const created = await getOrCreateDayForUser(selectedDate);
+                    await persistDayItems(created.id, itemsForDay);
+                    return;
+                  }
+                } catch (e) {
+                  console.warn('Failed to save day to server', e);
+                }
+
+                // fallback: save to legacy API
                 try {
                   await fetch('/api/save-day', {
                     method: 'POST',
@@ -247,6 +315,7 @@ export function Calendar({
 }) {
   const today = new Date();
   const start = startOfMonth(today);
+  const todayIso = isoDate(today);
   const year = start.getFullYear();
   const month = start.getMonth();
 
@@ -284,7 +353,7 @@ export function Calendar({
                 0
                 ? 'bg-green-50'
                 : 'bg-white'
-            }`}
+            } ${c.iso === todayIso ? 'ring-2 ring-yellow-300' : ''}`}
           >
             <div className="text-xs opacity-70">
               {c.iso
@@ -328,9 +397,44 @@ export function DayEditor({
   const [saved, setSaved] = useState(false);
   const [selIdx, setSelIdx] = useState(-1);
   const available = useMemo(() => Object.keys(FOOD_DB), []);
-  // cache for remote-loaded profiles (id -> profile object)
-  const [profileCache, setProfileCache] = useState<Record<string, any>>({});
-  const [remoteSuggestions, setRemoteSuggestions] = useState<string[]>([]);
+  // cache for remote-loaded profiles (id -> { profile, ts })
+  const [profileCache, setProfileCache] = useState<
+    Record<string, { profile: any; ts: number }>
+  >({});
+  const PROFILE_TTL = 1000 * 60 * 5; // 5 minutes
+
+  function getCachedProfile(id: string) {
+    const entry = (profileCache as any)[id];
+    if (entry && Date.now() - entry.ts < PROFILE_TTL) return entry.profile;
+    // fallback to runtime FOOD_DB if available
+    const runtime = (FOOD_DB as any)[id];
+    if (runtime) return runtime;
+    return null;
+  }
+
+  async function fetchAndCacheProfile(id: string) {
+    const existing = getCachedProfile(id);
+    if (existing) return existing;
+    try {
+      const res = await fetch(`/api/food/${encodeURIComponent(id)}`);
+      if (!res.ok) return null;
+      const profile = await res.json();
+      setProfileCache((c) => ({ ...c, [id]: { profile, ts: Date.now() } }));
+      // also merge into runtime FOOD_DB for combine functions
+      try {
+        (FOOD_DB as any)[id] = profile;
+      } catch (e) {
+        // ignore if immutable
+      }
+      return profile;
+    } catch (e) {
+      return null;
+    }
+  }
+  // remoteSuggestions now stores objects { id, name } for safer display/selection
+  const [remoteSuggestions, setRemoteSuggestions] = useState<
+    { id: string; name: string }[]
+  >([]);
 
   useEffect(
     () =>
@@ -338,37 +442,38 @@ export function DayEditor({
     [initialItems]
   );
 
+  // When initial items are loaded, prefetch any server profiles so we can
+  // display friendly names/serving info immediately.
+  useEffect(() => {
+    if (!initialItems) return;
+    const ids = new Set<string>();
+    for (const meal of ['breakfast', 'lunch', 'dinner'] as const) {
+      for (const it of (initialItems as any)[meal] ?? []) {
+        if (it && it.name) ids.add(it.name);
+      }
+    }
+    ids.forEach((id) => {
+      if (!getCachedProfile(id)) void fetchAndCacheProfile(id);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialItems]);
+
   // default target meal selection
   const [targetMeal, setTargetMeal] = useState<
     'breakfast' | 'lunch' | 'dinner'
   >('breakfast');
 
   function addFoodToDay(name: string) {
-    const key = name.toLowerCase();
+    const id = name; // canonical id (from remoteSuggestions) or local key
     // Fetch profile asynchronously and cache it; still optimistically add the item
-    (async () => {
-      try {
-        if (!profileCache[key]) {
-          const res = await fetch(`/api/food/${encodeURIComponent(key)}`);
-          if (res.ok) {
-            const profile = await res.json();
-            setProfileCache((c) => ({ ...c, [key]: profile }));
-            // Also add to runtime FOOD_DB so combine functions pick it up
-            try {
-              (FOOD_DB as any)[key] = profile;
-            } catch (e) {
-              // ignore if immutable
-            }
-          }
-        }
-      } catch (e) {
-        // ignore -- fallback to local FOOD_DB entry if present
-      }
-    })();
+    void fetchAndCacheProfile(id);
 
+    // store the canonical id as the item name so the combine functions will
+    // pick up the server-fetched profile (we show friendly names from cache
+    // when available elsewhere)
     setLocalItems((s) => ({
       ...s,
-      [targetMeal]: [...(s[targetMeal] ?? []), { name, qty: 1 }],
+      [targetMeal]: [...(s[targetMeal] ?? []), { name: id, qty: 1 }],
     }));
     setQuery('');
     setSelIdx(-1);
@@ -391,11 +496,11 @@ export function DayEditor({
   }
 
   const suggestions = useMemo(() => {
-    // prefer remote suggestions when available; fallback to local filter
+    // prefer remote suggestions (objects) when available; fallback to local filter
     const q = query.trim().toLowerCase();
     if (!q) return [];
     if (remoteSuggestions && remoteSuggestions.length > 0) {
-      return remoteSuggestions.slice(0, 8);
+      return remoteSuggestions.slice(0, 8).map((s) => s.name);
     }
     return available.filter((a) => a.includes(q)).slice(0, 4);
   }, [available, query, remoteSuggestions]);
@@ -414,10 +519,11 @@ export function DayEditor({
         if (!res.ok) return;
         const data = await res.json();
         if (!Array.isArray(data)) return;
-        // data may be array of ids or objects
-        const suggestions = data.map((d: any) =>
-          typeof d === 'string' ? d : d.id || d.name
-        );
+        // Normalize to { id, name }
+        const suggestions = data.map((d: any) => {
+          if (typeof d === 'string') return { id: d, name: d };
+          return { id: d.id || d.name, name: d.name || d.id };
+        });
         if (mounted) setRemoteSuggestions(suggestions);
       } catch (e) {
         // keep local suggestions
@@ -439,7 +545,11 @@ export function DayEditor({
   }, [query, remoteSuggestions.length]);
 
   // effective suggestions: prefer remote (server) suggestions when available
-  const effectiveSuggestions = remoteSuggestions && remoteSuggestions.length > 0 ? remoteSuggestions : suggestions;
+  // normalize to objects { id, name } for rendering/selection
+  const effectiveSuggestions =
+    (remoteSuggestions && remoteSuggestions.length > 0
+      ? remoteSuggestions
+      : suggestions.map((s) => ({ id: s, name: s }))) ?? [];
 
   return (
     <div className="mt-4 border rounded p-4 bg-white/60">
@@ -497,14 +607,16 @@ export function DayEditor({
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                setSelIdx((s) => Math.min(s + 1, effectiveSuggestions.length - 1));
+                setSelIdx((s) =>
+                  Math.min(s + 1, effectiveSuggestions.length - 1)
+                );
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 setSelIdx((s) => Math.max(s - 1, 0));
               } else if (e.key === 'Enter') {
                 e.preventDefault();
                 if (selIdx >= 0 && effectiveSuggestions[selIdx]) {
-                  addFoodToDay(effectiveSuggestions[selIdx]);
+                  addFoodToDay(effectiveSuggestions[selIdx].id);
                 } else if (exactMatch) {
                   addFoodToDay(exactMatch);
                 }
@@ -538,17 +650,17 @@ export function DayEditor({
           >
             {effectiveSuggestions.map((s, i) => (
               <div
-                key={s}
+                key={s.id}
                 id={`day-food-option-${i}`}
                 role="option"
                 aria-selected={i === selIdx}
                 onMouseEnter={() => setSelIdx(i)}
-                onClick={() => addFoodToDay(s)}
+                onClick={() => addFoodToDay(s.id)}
                 className={`text-left text-sm px-2 py-1 rounded ${
                   i === selIdx ? 'bg-slate-200' : 'hover:underline'
                 }`}
               >
-                {s}
+                {s.name}
               </div>
             ))}
           </div>
@@ -567,7 +679,26 @@ export function DayEditor({
                       className="flex items-center justify-between gap-4"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="min-w-[160px]">{it.name}</span>
+                        <span className="min-w-[160px]">
+                          {(() => {
+                            const p = getCachedProfile(it.name);
+                            const display = p?.name ?? it.name;
+                            const serving =
+                              p?.serving ||
+                              p?.serving_text ||
+                              p?.serving_size ||
+                              p?.serving_label;
+                            const qty = it.qty ?? 1;
+                            if (serving) {
+                              return qty && qty !== 1
+                                ? `${display} — ${qty} × ${serving}`
+                                : `${display} — ${serving}`;
+                            }
+                            return qty && qty !== 1
+                              ? `${qty} × ${display}`
+                              : display;
+                          })()}
+                        </span>
                         <label className="text-sm">Qty</label>
                         <input
                           type="number"

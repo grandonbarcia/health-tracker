@@ -1107,6 +1107,24 @@ export const FOOD_DB: Record<string, NutrientProfile> = {
     vitaminD: 0,
     cholesterol: 0,
   },
+  'mcdonalds-big-breakfast': {
+    // approximate per McDonald's Big Breakfast (single combo)
+    calories: 740,
+    protein: 30,
+    carbs: 63,
+    fat: 41,
+    fiber: 3,
+    sugar: 5,
+    sodium: 1560,
+    calcium: 200,
+    iron: 4,
+    potassium: 700,
+    vitaminC: 2,
+    vitaminA: 400,
+    vitaminD: 2,
+    cholesterol: 340,
+    serving: '1 meal',
+  },
 };
 
 // Recommended Daily Intake (RDI) simplified for an average adult — values are approximate
