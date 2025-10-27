@@ -15,7 +15,12 @@ const SUPABASE_ANON_KEY =
 // API routes). It must never be exposed to the browser.
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-const SUPABASE_KEY_TO_USE = SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY;
+// For client-side usage, always use the anon key to enable proper auth sessions
+// For server-side usage (like in API routes), prefer service role if available
+const isClientSide = typeof window !== 'undefined';
+const SUPABASE_KEY_TO_USE = isClientSide
+  ? SUPABASE_ANON_KEY
+  : SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY;
 
 if (!SUPABASE_URL) {
   // Make the error actionable for developers running the app locally.
@@ -25,5 +30,9 @@ if (!SUPABASE_URL) {
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY_TO_USE, {
-  auth: { persistSession: false },
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
 });

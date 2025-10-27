@@ -85,13 +85,26 @@ export async function setDayItems(dayId: string, meals: DayMeals) {
 }
 
 export async function getDayMeals(dateIso: string) {
-  const day = await getOrCreateDayForUser(dateIso);
-  const items = await getDayItems(day.id);
-  const meals: DayMeals = { breakfast: [], lunch: [], dinner: [] };
-  for (const it of items as any[]) {
-    const meal = it.metadata?.meal ?? 'dinner';
-    (meals as any)[meal] = (meals as any)[meal] ?? [];
-    (meals as any)[meal].push({ name: it.food_id, qty: Number(it.qty) });
+  console.log('🔍 getDayMeals called for date:', dateIso);
+
+  try {
+    const day = await getOrCreateDayForUser(dateIso);
+    console.log('📋 Day created/found:', day);
+
+    const items = await getDayItems(day.id);
+    console.log('🍽️ Day items loaded:', items);
+
+    const meals: DayMeals = { breakfast: [], lunch: [], dinner: [] };
+    for (const it of items as any[]) {
+      const meal = it.metadata?.meal ?? 'dinner';
+      (meals as any)[meal] = (meals as any)[meal] ?? [];
+      (meals as any)[meal].push({ name: it.food_id, qty: Number(it.qty) });
+    }
+
+    console.log('🍴 Processed meals:', meals);
+    return { day, meals } as { day: any; meals: DayMeals };
+  } catch (error) {
+    console.error('❌ Error in getDayMeals:', error);
+    throw error;
   }
-  return { day, meals } as { day: any; meals: DayMeals };
 }

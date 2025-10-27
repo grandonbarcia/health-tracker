@@ -13,6 +13,7 @@ import {
 } from '../lib/nutrients';
 import NutrientChart from '../components/NutrientChart';
 import AuthForm from '../components/AuthForm';
+import ImportModal from '../components/ImportModal';
 import { supabase } from '../lib/supabaseClient';
 import {
   getDayMeals,
@@ -23,6 +24,20 @@ import {
 export default function Home() {
   const [items, setItems] = useState<ItemWithQty[]>([]);
   const [percentMode, setPercentMode] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Import modal state
+  const [importModal, setImportModal] = useState<{
+    isOpen: boolean;
+    date: string;
+    localData: DayMeals;
+    serverData: DayMeals;
+  }>({
+    isOpen: false,
+    date: '',
+    localData: { breakfast: [], lunch: [], dinner: [] },
+    serverData: { breakfast: [], lunch: [], dinner: [] },
+  });
 
   const available = useMemo(() => Object.keys(FOOD_DB), []);
 
@@ -46,14 +61,45 @@ export default function Home() {
   // displayedTotals: use dayTotals when a day is selected, otherwise the global totals
   const displayedTotals = dayTotals ?? totals;
 
+  // Track authentication state
   useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+      setCurrentUser((data as any).session?.user ?? null);
+    })();
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setCurrentUser(session?.user ?? null);
+        // Clear dayItems when user changes to prevent data leakage
+        if (event === 'SIGNED_OUT') {
+          setDayItems({});
+        }
+      }
+    );
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  // Load initial data based on auth state
+  useEffect(() => {
+    if (currentUser) {
+      // For authenticated users, don't load from localStorage
+      // Data will be loaded when dates are selected
+      return;
+    }
+
+    // Only load from localStorage for unauthenticated users
     try {
       const raw = localStorage.getItem('foodLog');
       if (raw) setDayItems(JSON.parse(raw));
     } catch (e) {
       console.warn('Failed to load food log', e);
     }
-  }, []);
+  }, [currentUser]);
 
   // load per-day data from server when a date is selected
   useEffect(() => {
@@ -62,15 +108,20 @@ export default function Home() {
 
     (async () => {
       try {
-        // If user is authenticated, load their per-user day meals from Supabase
-        const { data: sessionData } = await supabase.auth.getSession();
-        const user = (sessionData as any).session?.user ?? null;
+        if (currentUser) {
+          // Authenticated user: load from Supabase
+          console.log(
+            '🔒 Loading data for authenticated user:',
+            currentUser.email
+          );
+          console.log('📅 Date:', selectedDate);
 
-        if (user) {
           const { day, meals } = await getDayMeals(selectedDate);
+          console.log('📊 Loaded user data:', { day, meals });
+
           if (cancelled) return;
 
-          // If localStorage has items for this date and they differ from server, offer import
+          // Check for localStorage import only on first load after authentication
           try {
             const raw = localStorage.getItem('foodLog');
             if (raw) {
@@ -81,16 +132,14 @@ export default function Home() {
               );
               const localJson = JSON.stringify(localForDate || {});
               if (localForDate && localJson !== serverJson) {
-                const doImport = window.confirm(
-                  'You have local entries for this date. Import them into your account and overwrite server data?'
-                );
-                if (doImport) {
-                  // ensure day exists and persist
-                  const created = await getOrCreateDayForUser(selectedDate);
-                  await persistDayItems(created.id, localForDate);
-                  setDayItems((s) => ({ ...s, [selectedDate]: localForDate }));
-                  return;
-                }
+                // Show modal instead of window.confirm
+                setImportModal({
+                  isOpen: true,
+                  date: selectedDate,
+                  localData: localForDate,
+                  serverData: meals || { breakfast: [], lunch: [], dinner: [] },
+                });
+                return; // Don't set server data yet, wait for user choice
               }
             }
           } catch (e) {
@@ -101,9 +150,14 @@ export default function Home() {
           return;
         }
 
-        // fallback: older server API or localStorage
+        // Unauthenticated user: use legacy API or localStorage data already loaded
+        console.log('🔓 Loading data for unauthenticated user');
+        console.log('📅 Date:', selectedDate);
+
         const res = await fetch(`/api/load-day?date=${selectedDate}`);
         const json = await res.json();
+        console.log('📊 Loaded legacy data:', json);
+
         if (cancelled) return;
         if (json && json.ok) {
           // normalize legacy array shape -> DayMeals
@@ -127,15 +181,22 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [selectedDate]);
+  }, [selectedDate, currentUser]);
 
+  // Only save to localStorage for unauthenticated users
   useEffect(() => {
+    if (currentUser) {
+      // Authenticated users: data is saved to Supabase, don't use localStorage
+      return;
+    }
+
+    // Unauthenticated users: save to localStorage
     try {
       localStorage.setItem('foodLog', JSON.stringify(dayItems));
     } catch (e) {
       console.warn('Failed to save food log', e);
     }
-  }, [dayItems]);
+  }, [dayItems, currentUser]);
 
   function addFood(name: string) {
     setItems((s) => [...s, { name, qty: 1 }]);
@@ -150,6 +211,45 @@ export default function Home() {
     setItems((s) => s.map((it, idx) => (idx === i ? { ...it, qty } : it)));
   }
 
+  // Import modal handlers
+  const handleImportLocal = async () => {
+    try {
+      const created = await getOrCreateDayForUser(importModal.date);
+      await persistDayItems(created.id, importModal.localData);
+      setDayItems((s) => ({ ...s, [importModal.date]: importModal.localData }));
+
+      // Clear localStorage after successful import for this date
+      try {
+        const raw = localStorage.getItem('foodLog');
+        if (raw) {
+          const local = JSON.parse(raw) as Record<string, DayMeals>;
+          delete local[importModal.date];
+          localStorage.setItem('foodLog', JSON.stringify(local));
+        }
+      } catch (e) {
+        console.warn('Failed to clean up localStorage after import');
+      }
+    } catch (e) {
+      console.error('Failed to import local data:', e);
+      alert('Failed to import data. Please try again.');
+    } finally {
+      setImportModal((s) => ({ ...s, isOpen: false }));
+    }
+  };
+
+  const handleKeepServerData = () => {
+    setDayItems((s) => ({ ...s, [importModal.date]: importModal.serverData }));
+    setImportModal((s) => ({ ...s, isOpen: false }));
+  };
+
+  const countItems = (meals: DayMeals) => {
+    return (
+      (meals.breakfast?.length || 0) +
+      (meals.lunch?.length || 0) +
+      (meals.dinner?.length || 0)
+    );
+  };
+
   return (
     <div className="min-h-screen p-8 sm:p-12">
       <header className="max-w-4xl mx-auto">
@@ -159,9 +259,21 @@ export default function Home() {
           </h1>
           <AuthForm />
         </div>
-        <p className="mb-4 text-sm text-muted-foreground">
-          Add foods from the food pyramid to calculate combined nutrients and
-          compare to RDI.
+        <p className="mb-4 text-sm text-muted-foreground flex items-center gap-4">
+          <span>
+            Add foods from the food pyramid to calculate combined nutrients and
+            compare to RDI.
+          </span>
+          {currentUser && (
+            <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">
+              ✓ Data saves to your account
+            </span>
+          )}
+          {!currentUser && (
+            <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded text-xs">
+              ⚠ Data saves locally only
+            </span>
+          )}
         </p>
       </header>
 
@@ -185,21 +297,21 @@ export default function Home() {
                 // update local state
                 setDayItems((s) => ({ ...s, [selectedDate]: itemsForDay }));
 
-                // If user signed in, persist to per-user tables via helper
-                try {
-                  const { data: sessionData } =
-                    await supabase.auth.getSession();
-                  const user = (sessionData as any).session?.user ?? null;
-                  if (user) {
+                if (currentUser) {
+                  // Authenticated user: save to Supabase only
+                  try {
                     const created = await getOrCreateDayForUser(selectedDate);
                     await persistDayItems(created.id, itemsForDay);
-                    return;
+                  } catch (e) {
+                    console.error('Failed to save day to user account:', e);
+                    alert(
+                      'Failed to save data to your account. Please try again.'
+                    );
                   }
-                } catch (e) {
-                  console.warn('Failed to save day to server', e);
+                  return;
                 }
 
-                // fallback: save to legacy API
+                // Unauthenticated user: save to legacy API (if available)
                 try {
                   await fetch('/api/save-day', {
                     method: 'POST',
@@ -210,7 +322,8 @@ export default function Home() {
                     }),
                   });
                 } catch (e) {
-                  console.warn('Failed to save day to server', e);
+                  console.warn('Failed to save day to legacy API', e);
+                  // For unauthenticated users, localStorage is the primary storage
                 }
               }}
             />
@@ -282,6 +395,16 @@ export default function Home() {
           </section>
         </div>
       </main>
+
+      {/* Import Modal */}
+      <ImportModal
+        isOpen={importModal.isOpen}
+        onClose={handleKeepServerData}
+        onImport={handleImportLocal}
+        date={importModal.date}
+        localItems={countItems(importModal.localData)}
+        serverItems={countItems(importModal.serverData)}
+      />
     </div>
   );
 }
