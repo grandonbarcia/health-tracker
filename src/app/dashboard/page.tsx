@@ -13,6 +13,9 @@ import {
 } from '../../lib/nutrients';
 import NutrientChart from '../../components/NutrientChart';
 import ImportModal from '../../components/ImportModal';
+import SettingsModal from '../../components/SettingsModal';
+import RecentFoods from '../../components/RecentFoods';
+import SmartRecommendations from '../../components/SmartRecommendations';
 import { supabase } from '../../lib/supabaseClient';
 import {
   getDayMeals,
@@ -25,6 +28,12 @@ export default function Home() {
   const [items, setItems] = useState<ItemWithQty[]>([]);
   const [percentMode, setPercentMode] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Settings modal state
+  const [showSettings, setShowSettings] = useState(false);
+  const [userGoals, setUserGoals] = useState<Record<string, number> | null>(
+    null
+  );
 
   // Import modal state
   const [importModal, setImportModal] = useState<{
@@ -62,13 +71,47 @@ export default function Home() {
   // displayedTotals: use dayTotals when a day is selected, otherwise the global totals
   const displayedTotals = dayTotals ?? totals;
 
+  // Load user goals
+  async function loadUserGoals() {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch('/api/user-settings', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.ok) {
+        const settings = await response.json();
+        setUserGoals({
+          calories: settings.daily_calories,
+          protein: settings.daily_protein,
+          carbs: settings.daily_carbs,
+          fat: settings.daily_fat,
+          fiber: settings.daily_fiber,
+          sodium: settings.daily_sodium,
+        });
+      }
+    } catch (error) {
+      console.error('Error loading user goals:', error);
+    }
+  }
+
   // Track authentication state
   useEffect(() => {
     let mounted = true;
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
-      setCurrentUser((data as any).session?.user ?? null);
+      const user = (data as any).session?.user ?? null;
+      setCurrentUser(user);
+      if (user) {
+        loadUserGoals();
+      }
     })();
     const { data: listener } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -76,6 +119,9 @@ export default function Home() {
         // Clear dayItems when user changes to prevent data leakage
         if (event === 'SIGNED_OUT') {
           setDayItems({});
+          setUserGoals(null);
+        } else if (session?.user) {
+          loadUserGoals();
         }
       }
     );
@@ -258,7 +304,17 @@ export default function Home() {
   return (
     <div className="min-h-screen p-8 sm:p-12">
       <header className="max-w-4xl mx-auto mb-6">
-        <h1 className="text-2xl font-semibold mb-2">Food Nutrient Combiner</h1>
+        <div className="flex justify-between items-start mb-2">
+          <h1 className="text-2xl font-semibold">Food Nutrient Combiner</h1>
+          {currentUser && (
+            <button
+              onClick={() => setShowSettings(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm flex items-center gap-2"
+            >
+              ⚙️ Goals
+            </button>
+          )}
+        </div>
         <p className="text-sm text-muted-foreground flex items-center gap-4">
           <span>
             Add foods from the food pyramid to calculate combined nutrients and
@@ -294,6 +350,8 @@ export default function Home() {
               date={selectedDate}
               initialItems={dayItems[selectedDate] ?? []}
               isLoading={loadingDate === selectedDate}
+              currentUser={currentUser}
+              userGoals={userGoals}
               onClose={() => setSelectedDate(null)}
               onSave={async (itemsForDay) => {
                 // update local state
@@ -306,9 +364,31 @@ export default function Home() {
                     await persistDayItems(created.id, itemsForDay);
                   } catch (e) {
                     console.error('Failed to save day to user account:', e);
-                    alert(
-                      'Failed to save data to your account. Please try again.'
-                    );
+
+                    // More specific error messages
+                    let errorMessage =
+                      'Failed to save data to your account. Please try again.';
+                    if (e instanceof Error) {
+                      if (
+                        e.message.includes(
+                          'relation "user_days" does not exist'
+                        )
+                      ) {
+                        errorMessage =
+                          'Database tables not set up. Please run the SQL setup scripts first. Check SETUP_DATABASE.md for instructions.';
+                      } else if (e.message.includes('User not authenticated')) {
+                        errorMessage =
+                          'You are not logged in. Please sign in and try again.';
+                      } else if (
+                        e.message.includes('permission denied') ||
+                        e.message.includes('RLS')
+                      ) {
+                        errorMessage =
+                          'Permission denied. Make sure Row Level Security is properly configured.';
+                      }
+                    }
+
+                    alert(errorMessage);
                   }
                   return;
                 }
@@ -387,11 +467,12 @@ export default function Home() {
                 <span className="text-sm">Show percent-of-RDI</span>
               </label>
             </div>
-            <div className="h-[420px] border rounded p-2 bg-white/50">
+            <div className="border rounded p-2 bg-white/50">
               <NutrientChart
                 nutrients={displayedTotals}
-                rdi={RDI}
+                rdi={userGoals || RDI}
                 percentMode={percentMode}
+                showGoalProgress={!!userGoals}
               />
             </div>
           </section>
@@ -406,6 +487,22 @@ export default function Home() {
         date={importModal.date}
         localItems={countItems(importModal.localData)}
         serverItems={countItems(importModal.serverData)}
+      />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        onSave={(settings) => {
+          setUserGoals({
+            calories: settings.daily_calories,
+            protein: settings.daily_protein,
+            carbs: settings.daily_carbs,
+            fat: settings.daily_fat,
+            fiber: settings.daily_fiber,
+            sodium: settings.daily_sodium,
+          });
+        }}
       />
     </div>
   );
@@ -542,12 +639,16 @@ export function DayEditor({
   date,
   initialItems,
   isLoading,
+  currentUser,
+  userGoals,
   onClose,
   onSave,
 }: {
   date: string;
   initialItems: DayMeals;
   isLoading?: boolean;
+  currentUser: any;
+  userGoals: Record<string, number> | null;
   onClose: () => void;
   onSave: (items: DayMeals) => void;
 }) {
@@ -624,10 +725,35 @@ export function DayEditor({
     'breakfast' | 'lunch' | 'dinner'
   >('breakfast');
 
+  async function trackFoodUsage(foodId: string) {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) return;
+
+      await fetch('/api/recent-foods', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ food_id: foodId }),
+      });
+    } catch (error) {
+      console.error('Error tracking food usage:', error);
+    }
+  }
+
   function addFoodToDay(name: string) {
     const id = name; // canonical id (from remoteSuggestions) or local key
     // Fetch profile asynchronously and cache it; still optimistically add the item
     void fetchAndCacheProfile(id);
+
+    // Track food usage for authenticated users
+    if (currentUser) {
+      trackFoodUsage(id);
+    }
 
     // store the canonical id as the item name so the combine functions will
     // pick up the server-fetched profile (we show friendly names from cache
@@ -749,6 +875,38 @@ export function DayEditor({
       </div>
 
       <div>
+        {/* Recent Foods Section */}
+        {currentUser && query === '' && (
+          <div className="mb-4 border rounded-lg p-3 bg-gray-50">
+            <RecentFoods
+              currentUser={currentUser}
+              onSelectFood={(foodId) => addFoodToDay(foodId)}
+            />
+          </div>
+        )}
+
+        {/* Smart Recommendations Section */}
+        {currentUser && query === '' && (
+          <div className="mb-4">
+            <SmartRecommendations
+              currentNutrition={(() => {
+                // Calculate current day's nutrition for recommendations
+                const dayTotals = combineDayMealsWithQty(localItems);
+                return {
+                  calories: dayTotals.calories || 0,
+                  protein: dayTotals.protein || 0,
+                  carbs: dayTotals.carbs || 0,
+                  fat: dayTotals.fat || 0,
+                  fiber: dayTotals.fiber || 0,
+                  sodium: dayTotals.sodium || 0,
+                };
+              })()}
+              userGoals={userGoals}
+              onSelectFood={(foodId) => addFoodToDay(foodId)}
+            />
+          </div>
+        )}
+
         <div className="flex gap-2 mb-2">
           <select
             value={targetMeal}

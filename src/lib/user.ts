@@ -2,19 +2,29 @@ import { supabase } from './supabaseClient';
 import { DayMeals, ItemWithQty } from './nutrients';
 
 export async function getOrCreateDayForUser(dateIso: string) {
-  // assumes user is authenticated (supabase-js will include the session)
+  // Get current user first
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  if (authError || !user) {
+    throw new Error('User not authenticated');
+  }
+
   // try to find existing
   const { data: existing, error: selErr } = await supabase
     .from('user_days')
     .select('*')
     .eq('day_date', dateIso)
+    .eq('user_id', user.id)
     .limit(1);
   if (selErr) throw selErr;
   if (existing && (existing as any).length) return (existing as any)[0];
 
+  // Create new day with user_id
   const { data: inserted, error: insErr } = await supabase
     .from('user_days')
-    .insert({ day_date: dateIso })
+    .insert({ day_date: dateIso, user_id: user.id })
     .select()
     .limit(1);
   if (insErr) throw insErr;
@@ -48,9 +58,19 @@ export async function getDayItems(dayId: string) {
 }
 
 export async function getDaysForUser(limit = 50) {
+  // Get current user first
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  if (authError || !user) {
+    throw new Error('User not authenticated');
+  }
+
   const { data, error } = await supabase
     .from('user_days')
     .select('*')
+    .eq('user_id', user.id)
     .order('day_date', { ascending: false })
     .limit(limit);
   if (error) throw error;
