@@ -91,20 +91,94 @@ export async function getDayMeals(dateIso: string) {
     const day = await getOrCreateDayForUser(dateIso);
     console.log('📋 Day created/found:', day);
 
+    if (!day || !day.id) {
+      console.warn('⚠️ No day found or created');
+      return {
+        day: null,
+        meals: { breakfast: [], lunch: [], dinner: [] },
+      };
+    }
+
     const items = await getDayItems(day.id);
     console.log('🍽️ Day items loaded:', items);
 
     const meals: DayMeals = { breakfast: [], lunch: [], dinner: [] };
-    for (const it of items as any[]) {
-      const meal = it.metadata?.meal ?? 'dinner';
-      (meals as any)[meal] = (meals as any)[meal] ?? [];
-      (meals as any)[meal].push({ name: it.food_id, qty: Number(it.qty) });
+    if (items && Array.isArray(items)) {
+      for (const it of items as any[]) {
+        const meal = it.metadata?.meal ?? 'dinner';
+        (meals as any)[meal] = (meals as any)[meal] ?? [];
+        (meals as any)[meal].push({ name: it.food_id, qty: Number(it.qty) });
+      }
     }
 
     console.log('🍴 Processed meals:', meals);
     return { day, meals } as { day: any; meals: DayMeals };
   } catch (error) {
     console.error('❌ Error in getDayMeals:', error);
-    throw error;
+    // Return empty meals instead of throwing to prevent app crash
+    return {
+      day: null,
+      meals: { breakfast: [], lunch: [], dinner: [] },
+    };
+  }
+}
+
+export async function getAllDaysWithMeals() {
+  console.log('📅 Loading all days for user...');
+
+  try {
+    // Get all days for the user
+    const days = await getDaysForUser(100); // Load up to 100 days
+    console.log('📊 Found days:', days?.length);
+
+    if (!days || days.length === 0) {
+      console.log('ℹ️ No days found for user');
+      return {};
+    }
+
+    // Get all items for these days in one query
+    const dayIds = days.map((d: any) => d.id);
+    const { data: allItems, error } = await supabase
+      .from('user_day_items')
+      .select('*')
+      .in('day_id', dayIds);
+
+    if (error) {
+      console.error('❌ Error fetching items:', error);
+      return {}; // Return empty instead of throwing
+    }
+
+    // Group items by day_id
+    const itemsByDayId: Record<string, any[]> = {};
+    if (allItems && Array.isArray(allItems)) {
+      for (const item of allItems as any[]) {
+        if (!itemsByDayId[item.day_id]) {
+          itemsByDayId[item.day_id] = [];
+        }
+        itemsByDayId[item.day_id].push(item);
+      }
+    }
+
+    // Build the result: Record<dateIso, DayMeals>
+    const result: Record<string, DayMeals> = {};
+    for (const day of days as any[]) {
+      const items = itemsByDayId[day.id] || [];
+      const meals: DayMeals = { breakfast: [], lunch: [], dinner: [] };
+
+      for (const it of items) {
+        const meal = it.metadata?.meal ?? 'dinner';
+        (meals as any)[meal] = (meals as any)[meal] ?? [];
+        (meals as any)[meal].push({ name: it.food_id, qty: Number(it.qty) });
+      }
+
+      result[day.day_date] = meals;
+    }
+
+    console.log('✅ Loaded all days:', Object.keys(result).length);
+    return result;
+  } catch (error) {
+    console.error('❌ Error loading all days:', error);
+    // Return empty object instead of throwing to prevent app crash
+    return {};
   }
 }
