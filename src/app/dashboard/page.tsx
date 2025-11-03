@@ -16,6 +16,9 @@ import ImportModal from '../../components/ImportModal';
 import SettingsModal from '../../components/SettingsModal';
 import RecentFoods from '../../components/RecentFoods';
 import SmartRecommendations from '../../components/SmartRecommendations';
+import RestaurantFoods from '../../components/RestaurantFoods';
+import FavoriteFoods from '../../components/FavoriteFoods';
+import FavoriteButton from '../../components/FavoriteButton';
 import { supabase } from '../../lib/supabaseClient';
 import {
   getDayMeals,
@@ -554,9 +557,30 @@ export function Calendar({
   }
 
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const monthNames = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
 
   return (
     <div className="border rounded p-4 bg-white/50">
+      {/* Month and Year Header */}
+      <div className="text-center mb-4">
+        <h2 className="text-lg font-semibold text-gray-800">
+          {monthNames[month]} {year}
+        </h2>
+      </div>
+
       <div className="grid grid-cols-7 gap-2 text-xs text-center font-medium mb-2">
         {weekDays.map((w) => (
           <div key={w}>{w}</div>
@@ -885,6 +909,16 @@ export function DayEditor({
           </div>
         )}
 
+        {/* Favorite Foods Section */}
+        {currentUser && query === '' && (
+          <div className="mb-4">
+            <FavoriteFoods
+              currentUser={currentUser}
+              onSelectFood={(foodId) => addFoodToDay(foodId)}
+            />
+          </div>
+        )}
+
         {/* Smart Recommendations Section */}
         {currentUser && query === '' && (
           <div className="mb-4">
@@ -903,6 +937,16 @@ export function DayEditor({
               })()}
               userGoals={userGoals}
               onSelectFood={(foodId) => addFoodToDay(foodId)}
+            />
+          </div>
+        )}
+
+        {/* Restaurant Foods Section */}
+        {query === '' && (
+          <div className="mb-4">
+            <RestaurantFoods
+              onSelectFood={(foodId) => addFoodToDay(foodId)}
+              currentUser={currentUser}
             />
           </div>
         )}
@@ -974,12 +1018,24 @@ export function DayEditor({
                 role="option"
                 aria-selected={i === selIdx}
                 onMouseEnter={() => setSelIdx(i)}
-                onClick={() => addFoodToDay(s.id)}
-                className={`text-left text-sm px-2 py-1 rounded ${
-                  i === selIdx ? 'bg-slate-200' : 'hover:underline'
+                className={`flex items-center justify-between text-left text-sm px-2 py-1 rounded ${
+                  i === selIdx ? 'bg-slate-200' : 'hover:bg-slate-100'
                 }`}
               >
-                {s.name}
+                <button
+                  onClick={() => addFoodToDay(s.id)}
+                  className="flex-1 text-left hover:underline"
+                >
+                  {s.name}
+                </button>
+                {currentUser && (
+                  <FavoriteButton
+                    foodId={s.id}
+                    foodType={(s as any).type || 'regular'}
+                    currentUser={currentUser}
+                    size="sm"
+                  />
+                )}
               </div>
             ))}
           </div>

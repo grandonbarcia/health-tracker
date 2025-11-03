@@ -1235,3 +1235,32 @@ export const NUTRIENT_UNITS: Record<string, string> = {
   vitaminD: 'µg',
   cholesterol: 'mg',
 };
+
+// Import restaurant foods and merge with regular foods for compatibility
+import { RESTAURANT_FOODS } from './restaurantFoods';
+
+// Convert restaurant foods to the NutrientProfile format and merge
+const convertedRestaurantFoods: Record<string, NutrientProfile> = {};
+Object.values(RESTAURANT_FOODS).forEach((food) => {
+  convertedRestaurantFoods[food.id] = {
+    calories: food.calories,
+    protein: food.protein,
+    carbs: food.carbs,
+    fat: food.fat,
+    fiber: food.fiber,
+    sodium: food.sodium,
+    serving: food.serving,
+    // Default values for missing nutrients
+    sugar: 0,
+    calcium: 0,
+    iron: 0,
+    potassium: 0,
+    vitaminC: 0,
+    vitaminA: 0,
+    vitaminD: 0,
+    cholesterol: 0,
+  };
+});
+
+// Merge restaurant foods with regular foods
+Object.assign(FOOD_DB, convertedRestaurantFoods);

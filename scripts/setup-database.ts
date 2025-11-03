@@ -53,9 +53,22 @@ async function createTables() {
     create index if not exists idx_user_day_items_day on user_day_items(day_id);
     create index if not exists idx_user_day_items_metadata on user_day_items using gin (metadata);
 
+    -- Create user_favorites table for favorite foods
+    create table if not exists user_favorites (
+      id uuid default gen_random_uuid() primary key,
+      user_id uuid not null,
+      food_id text not null,
+      food_type text not null check (food_type in ('standard', 'restaurant')),
+      created_at timestamptz default now()
+    );
+
+    create unique index if not exists idx_user_favorites_unique on user_favorites(user_id, food_id, food_type);
+    create index if not exists idx_user_favorites_user on user_favorites(user_id);
+
     -- Enable Row Level Security
     alter table user_days enable row level security;
     alter table user_day_items enable row level security;
+    alter table user_favorites enable row level security;
   `;
 
   try {
@@ -127,6 +140,22 @@ async function createTables() {
       END IF;
     END
     $$;
+
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE tablename = 'user_favorites'
+          AND policyname = 'user_favorites_is_owner'
+      ) THEN
+        CREATE POLICY user_favorites_is_owner
+          ON user_favorites
+          FOR ALL
+          USING (user_id = auth.uid())
+          WITH CHECK (user_id = auth.uid());
+      END IF;
+    END
+    $$;
   `;
 
   try {
@@ -168,6 +197,20 @@ async function verifySetup() {
       console.error(
         '❌ user_day_items table not accessible:',
         itemsError.message
+      );
+      return false;
+    }
+
+    // Test user_favorites table
+    const { error: favoritesError } = await supabase
+      .from('user_favorites')
+      .select('id')
+      .limit(1);
+
+    if (favoritesError) {
+      console.error(
+        '❌ user_favorites table not accessible:',
+        favoritesError.message
       );
       return false;
     }
