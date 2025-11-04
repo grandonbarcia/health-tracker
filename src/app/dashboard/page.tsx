@@ -24,6 +24,8 @@ import SmartRecommendations from '../../components/SmartRecommendations';
 import RestaurantFoods from '../../components/RestaurantFoods';
 import FavoriteFoods from '../../components/FavoriteFoods';
 import FavoriteButton from '../../components/FavoriteButton';
+import RecipeModal from '../../components/RecipeModal';
+import SavedRecipes from '../../components/SavedRecipes';
 import {
   Collapsible,
   CollapsibleContent,
@@ -38,6 +40,7 @@ import {
   getAllDaysWithMeals,
 } from '../../lib/user';
 import { FavoritesProvider } from '../../contexts/FavoritesContext';
+import { Recipe, CreateRecipeData } from '../../types/recipe';
 
 function Home() {
   // Use ref to track if component is mounted to prevent hydration issues
@@ -96,6 +99,10 @@ function Home() {
   const [userGoals, setUserGoals] = useState<Record<string, number> | null>(
     null
   );
+
+  // Recipe modal state
+  const [showRecipeModal, setShowRecipeModal] = useState(false);
+  const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
 
   const [importModal, setImportModal] = useState<{
     isOpen: boolean;
@@ -386,20 +393,89 @@ function Home() {
     );
   };
 
+  // Recipe handlers
+  const handleCreateRecipe = () => {
+    setEditingRecipe(null);
+    setShowRecipeModal(true);
+  };
+
+  const handleEditRecipe = (recipe: Recipe) => {
+    setEditingRecipe(recipe);
+    setShowRecipeModal(true);
+  };
+
+  const handleSaveRecipe = async (recipeData: CreateRecipeData) => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const url = editingRecipe
+        ? `/api/recipes/${editingRecipe.id}`
+        : '/api/recipes';
+      const method = editingRecipe ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(recipeData),
+      });
+
+      if (response.ok) {
+        console.log(
+          `Recipe ${editingRecipe ? 'updated' : 'created'} successfully`
+        );
+        // The SavedRecipes component will reload automatically
+      } else {
+        const errorData = await response.json();
+        alert(
+          errorData.error ||
+            `Failed to ${editingRecipe ? 'update' : 'create'} recipe`
+        );
+      }
+    } catch (error) {
+      console.error('Error saving recipe:', error);
+      alert('An error occurred. Please try again.');
+    }
+  };
+
+  const handleSelectRecipe = (recipe: Recipe) => {
+    // When a recipe is selected, we want to add it to the current day
+    // For now, let's just log it - this will be implemented when we integrate with DayEditor
+    console.log('Selected recipe:', recipe);
+    alert(
+      `Recipe "${recipe.name}" selected. Integration with daily logging coming soon!`
+    );
+  };
+
   return (
     <FavoritesProvider currentUser={stableCurrentUser}>
       <div className="min-h-screen p-8 sm:p-12">
         <header className="max-w-4xl mx-auto mb-6">
           <div className="flex justify-between items-start mb-2">
             <h1 className="text-2xl font-semibold">Food Nutrient Combiner</h1>
-            {currentUser && (
-              <button
-                onClick={() => setShowSettings(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm flex items-center gap-2"
-              >
-                ⚙️ Goals
-              </button>
-            )}
+            <div className="flex gap-2">
+              {currentUser && (
+                <>
+                  <button
+                    onClick={handleCreateRecipe}
+                    className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 text-sm flex items-center gap-2"
+                  >
+                    🍳 New Recipe
+                  </button>
+                  <button
+                    onClick={() => setShowSettings(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm flex items-center gap-2"
+                  >
+                    ⚙️ Goals
+                  </button>
+                </>
+              )}
+            </div>
           </div>
           <p className="text-sm text-muted-foreground flex items-center gap-4">
             <span>
@@ -439,6 +515,9 @@ function Home() {
                 currentUser={currentUser}
                 userGoals={userGoals}
                 onClose={() => setSelectedDate(null)}
+                onCreateRecipe={handleCreateRecipe}
+                onEditRecipe={handleEditRecipe}
+                onSelectRecipe={handleSelectRecipe}
                 onSave={async (itemsForDay) => {
                   // update local state
                   setDayItems((s) => ({ ...s, [selectedDate]: itemsForDay }));
@@ -591,6 +670,17 @@ function Home() {
               sodium: settings.daily_sodium,
             });
           }}
+        />
+
+        {/* Recipe Modal */}
+        <RecipeModal
+          isOpen={showRecipeModal}
+          onClose={() => {
+            setShowRecipeModal(false);
+            setEditingRecipe(null);
+          }}
+          onSave={handleSaveRecipe}
+          editingRecipe={editingRecipe}
         />
       </div>
     </FavoritesProvider>
@@ -753,6 +843,9 @@ export function DayEditor({
   userGoals,
   onClose,
   onSave,
+  onCreateRecipe,
+  onEditRecipe,
+  onSelectRecipe,
 }: {
   date: string;
   initialItems: DayMeals;
@@ -761,6 +854,9 @@ export function DayEditor({
   userGoals: Record<string, number> | null;
   onClose: () => void;
   onSave: (items: DayMeals) => void;
+  onCreateRecipe?: () => void;
+  onEditRecipe?: (recipe: Recipe) => void;
+  onSelectRecipe?: (recipe: Recipe) => void;
 }) {
   const [localItems, setLocalItems] = useState<DayMeals>(
     initialItems ?? { breakfast: [], lunch: [], dinner: [] }
@@ -774,6 +870,7 @@ export function DayEditor({
     favorites: true,
     recommendations: true,
     restaurants: true,
+    recipes: true,
   });
 
   const available = useMemo(() => Object.keys(FOOD_DB), []);
@@ -1080,6 +1177,33 @@ export function DayEditor({
               <RestaurantFoods
                 onSelectFood={(foodId) => addFoodToDay(foodId)}
                 currentUser={currentUser}
+              />
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
+        {/* Saved Recipes Section */}
+        {currentUser && query === '' && (
+          <Collapsible
+            open={!isCollapsed.recipes}
+            onOpenChange={(open) =>
+              setIsCollapsed((prev) => ({ ...prev, recipes: !open }))
+            }
+            className="mb-4"
+          >
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border transition-colors">
+              <h3 className="font-medium text-gray-900">My Recipes</h3>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${
+                  isCollapsed.recipes ? 'rotate-180' : ''
+                }`}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3">
+              <SavedRecipes
+                currentUser={currentUser}
+                onSelectRecipe={onSelectRecipe || (() => {})}
+                onEditRecipe={onEditRecipe || (() => {})}
               />
             </CollapsibleContent>
           </Collapsible>
