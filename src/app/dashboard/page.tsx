@@ -26,6 +26,7 @@ import FavoriteFoods from '../../components/FavoriteFoods';
 import FavoriteButton from '../../components/FavoriteButton';
 import RecipeModal from '../../components/RecipeModal';
 import SavedRecipes from '../../components/SavedRecipes';
+import NutritionAnalytics from '../../components/NutritionAnalytics';
 import {
   Collapsible,
   CollapsibleContent,
@@ -103,6 +104,9 @@ function Home() {
   // Recipe modal state
   const [showRecipeModal, setShowRecipeModal] = useState(false);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
+
+  // Analytics section state
+  const [analyticsCollapsed, setAnalyticsCollapsed] = useState(true);
 
   const [importModal, setImportModal] = useState<{
     isOpen: boolean;
@@ -581,6 +585,37 @@ function Home() {
         </div>
 
         <main className="max-w-4xl mx-auto">
+          {/* Analytics Section */}
+          {currentUser && (
+            <div className="mb-6">
+              <Collapsible
+                open={!analyticsCollapsed}
+                onOpenChange={(open) => setAnalyticsCollapsed(!open)}
+                className="border rounded-lg"
+              >
+                <CollapsibleTrigger className="flex items-center justify-between w-full p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
+                  <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                    <span>📊</span>
+                    Nutrition Analytics & Trends
+                  </h3>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform ${
+                      analyticsCollapsed ? 'rotate-180' : ''
+                    }`}
+                  />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="p-4 pt-0">
+                    <NutritionAnalytics
+                      currentUser={currentUser}
+                      userGoals={userGoals || undefined}
+                    />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          )}
+
           {/* Combined nutrients + Compare chart side-by-side */}
           <div className="grid md:grid-cols-2 gap-6">
             <section>
@@ -871,6 +906,7 @@ export function DayEditor({
     recommendations: true,
     restaurants: true,
     recipes: true,
+    analytics: true,
   });
 
   const available = useMemo(() => Object.keys(FOOD_DB), []);
