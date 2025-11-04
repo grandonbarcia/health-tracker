@@ -1,5 +1,11 @@
 'use client';
-import { useMemo, useState, useEffect } from 'react';
+import React, {
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from 'react';
 import {
   FOOD_DB,
   RDI,
@@ -14,11 +20,16 @@ import {
 import NutrientChart from '../../components/NutrientChart';
 import ImportModal from '../../components/ImportModal';
 import SettingsModal from '../../components/SettingsModal';
-import RecentFoods from '../../components/RecentFoods';
 import SmartRecommendations from '../../components/SmartRecommendations';
 import RestaurantFoods from '../../components/RestaurantFoods';
 import FavoriteFoods from '../../components/FavoriteFoods';
 import FavoriteButton from '../../components/FavoriteButton';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { ChevronDown } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   getDayMeals,
@@ -26,11 +37,59 @@ import {
   getOrCreateDayForUser,
   getAllDaysWithMeals,
 } from '../../lib/user';
+import { FavoritesProvider } from '../../contexts/FavoritesContext';
 
-export default function Home() {
+function Home() {
+  // Use ref to track if component is mounted to prevent hydration issues
+  const isMounted = useRef(false);
+
   const [items, setItems] = useState<ItemWithQty[]>([]);
   const [percentMode, setPercentMode] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Memoize user to prevent unnecessary re-renders from object reference changes
+  const stableCurrentUser = useMemo(() => currentUser, [currentUser?.id]);
+
+  // Use ref to persist initialization state across re-renders
+  const hasInitializedAuth = useRef(false);
+  const hasLoadedAllDays = useRef(false);
+  const currentUserIdRef = useRef<string | null>(null);
+
+  // Track mounting state and detect page reloads
+  useEffect(() => {
+    isMounted.current = true;
+
+    // Check if page was refreshed/reloaded
+    if (performance.navigation.type === 1) {
+      console.log('🔄 PAGE RELOAD detected via performance.navigation');
+    }
+
+    // Set up page visibility debugging
+    const handleVisibilityChange = () => {
+      console.log(
+        `👁️ Page visibility changed: ${document.hidden ? 'HIDDEN' : 'VISIBLE'}`
+      );
+    };
+
+    const handleFocus = () => {
+      console.log('🎯 Window gained focus');
+    };
+
+    const handleBlur = () => {
+      console.log('😶‍🌫️ Window lost focus');
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      isMounted.current = false;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
 
   // Settings modal state
   const [showSettings, setShowSettings] = useState(false);
@@ -38,7 +97,6 @@ export default function Home() {
     null
   );
 
-  // Import modal state
   const [importModal, setImportModal] = useState<{
     isOpen: boolean;
     date: string;
@@ -72,9 +130,7 @@ export default function Home() {
   }, [selectedDate, dayItems]);
 
   // displayedTotals: use dayTotals when a day is selected, otherwise the global totals
-  const displayedTotals = dayTotals ?? totals;
-
-  // Load user goals
+  const displayedTotals = dayTotals ?? totals; // Load user goals
   async function loadUserGoals() {
     try {
       const {
@@ -104,27 +160,62 @@ export default function Home() {
     }
   }
 
-  // Track authentication state
+  // Track authentication state - RE-ENABLED for testing
   useEffect(() => {
     let mounted = true;
+
     (async () => {
+      // Only check session on initial load
+      if (hasInitializedAuth.current) {
+        return;
+      }
+
       const { data } = await supabase.auth.getSession();
-      if (!mounted) return;
+      if (!mounted || !isMounted.current) return;
       const user = (data as any).session?.user ?? null;
       setCurrentUser(user);
+      currentUserIdRef.current = user?.id || null; // Update ref
       if (user) {
         loadUserGoals();
       }
+      hasInitializedAuth.current = true;
     })();
+
     const { data: listener } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        setCurrentUser(session?.user ?? null);
-        // Clear dayItems when user changes to prevent data leakage
-        if (event === 'SIGNED_OUT') {
-          setDayItems({});
-          setUserGoals(null);
-        } else if (session?.user) {
-          loadUserGoals();
+        if (!isMounted.current) {
+          return;
+        }
+
+        const newUser = session?.user ?? null;
+        const currentUserId = currentUserIdRef.current;
+        const newUserId = newUser?.id || null;
+
+        // Ignore SIGNED_IN events if user hasn't actually changed
+        // This prevents unnecessary re-renders when tabbing back to the app
+        if (event === 'SIGNED_IN' && currentUserId === newUserId) {
+          return;
+        }
+
+        // Also ignore SIGNED_IN events if we're still in the initialization phase
+        // and the auth state hasn't been properly set yet
+        if (event === 'SIGNED_IN' && !hasInitializedAuth.current) {
+          return;
+        }
+
+        // Only update state if the user actually changed
+        if (currentUserId !== newUserId) {
+          setCurrentUser(newUser);
+          currentUserIdRef.current = newUserId; // Update ref
+          // Clear dayItems when user changes to prevent data leakage
+          if (event === 'SIGNED_OUT') {
+            setDayItems({});
+            setUserGoals(null);
+            hasLoadedAllDays.current = false;
+          } else if (newUser) {
+            loadUserGoals();
+            hasLoadedAllDays.current = false; // Reset flag for new user
+          }
         }
       }
     );
@@ -132,59 +223,56 @@ export default function Home() {
       mounted = false;
       listener.subscription.unsubscribe();
     };
-  }, []);
+  }, []); // Empty dependency array - run only once
 
   // Load initial data based on auth state
   useEffect(() => {
     let mounted = true;
 
-    if (currentUser) {
+    if (stableCurrentUser) {
       // For authenticated users, load all days from Supabase
       (async () => {
         try {
-          console.log('🔄 Loading all days for authenticated user...');
           const allDays = await getAllDaysWithMeals();
-          if (mounted) {
+          if (mounted && isMounted.current) {
             setDayItems(allDays);
-            console.log('✅ Loaded all days:', Object.keys(allDays).length);
+            hasLoadedAllDays.current = true;
           }
         } catch (e) {
-          console.error('Failed to load all days:', e);
+          console.warn('Failed to load food log', e);
         }
       })();
-      return () => {
-        mounted = false;
-      };
+    } else {
+      // Unauthenticated users: load from localStorage
+      try {
+        const raw = localStorage.getItem('foodLog');
+        if (!raw) return;
+        const local = JSON.parse(raw || '{}') as Record<string, DayMeals>;
+        if (mounted && isMounted.current) {
+          setDayItems(local);
+        }
+      } catch (e) {
+        console.warn('Failed to load food log', e);
+      }
     }
 
-    // Only load from localStorage for unauthenticated users
-    try {
-      const raw = localStorage.getItem('foodLog');
-      if (raw) setDayItems(JSON.parse(raw));
-    } catch (e) {
-      console.warn('Failed to load food log', e);
-    }
-  }, [currentUser]);
+    return () => {
+      mounted = false;
+    };
+  }, [stableCurrentUser?.id]); // Use just the ID to avoid reference changes
 
-  // load per-day data from server when a date is selected
+  // load per-day data from server when a date is selected (only if not already loaded)
   useEffect(() => {
-    if (!selectedDate) return;
+    if (!selectedDate || hasLoadedAllDays.current) return;
     let cancelled = false;
 
     (async () => {
       try {
         setLoadingDate(selectedDate);
 
-        if (currentUser) {
-          // Authenticated user: load from Supabase
-          console.log(
-            '🔒 Loading data for authenticated user:',
-            currentUser.email
-          );
-          console.log('📅 Date:', selectedDate);
-
+        if (stableCurrentUser) {
+          // Authenticated user: load from Supabase only if we haven't loaded all days
           const { day, meals } = await getDayMeals(selectedDate);
-          console.log('📊 Loaded user data:', { day, meals });
 
           if (cancelled) return;
 
@@ -220,12 +308,6 @@ export default function Home() {
         }
 
         // Unauthenticated user: rely only on localStorage data already loaded
-        // Don't fetch from Supabase API to avoid populating calendar with database data
-        console.log('� Unauthenticated user - using localStorage only');
-        console.log('� Date:', selectedDate);
-
-        // Data is already loaded from localStorage in the initial load effect
-        // If the selected date has no data, it will remain empty (user can add items)
         setLoadingDate(null);
       } catch (e) {
         // ignore; localStorage already has data
@@ -235,11 +317,11 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [selectedDate, currentUser]);
+  }, [selectedDate, stableCurrentUser?.id]); // Use ID instead of full object
 
   // Only save to localStorage for unauthenticated users
   useEffect(() => {
-    if (currentUser) {
+    if (stableCurrentUser) {
       // Authenticated users: data is saved to Supabase, don't use localStorage
       return;
     }
@@ -250,7 +332,7 @@ export default function Home() {
     } catch (e) {
       console.warn('Failed to save food log', e);
     }
-  }, [dayItems, currentUser]);
+  }, [dayItems, stableCurrentUser?.id]); // Use ID to avoid object reference changes
 
   function addFood(name: string) {
     setItems((s) => [...s, { name, qty: 1 }]);
@@ -305,209 +387,213 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen p-8 sm:p-12">
-      <header className="max-w-4xl mx-auto mb-6">
-        <div className="flex justify-between items-start mb-2">
-          <h1 className="text-2xl font-semibold">Food Nutrient Combiner</h1>
-          {currentUser && (
-            <button
-              onClick={() => setShowSettings(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm flex items-center gap-2"
-            >
-              ⚙️ Goals
-            </button>
-          )}
-        </div>
-        <p className="text-sm text-muted-foreground flex items-center gap-4">
-          <span>
-            Add foods from the food pyramid to calculate combined nutrients and
-            compare to RDI.
-          </span>
-          {currentUser && (
-            <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">
-              ✓ Data saves to your account
-            </span>
-          )}
-          {!currentUser && (
-            <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded text-xs">
-              ⚠ Data saves locally only
-            </span>
-          )}
-        </p>
-      </header>
-
-      {/* Calendar at top */}
-      <div className="max-w-4xl mx-auto mb-6">
-        <h3 className="font-medium mb-3">Calendar</h3>
-        <Calendar
-          onSelectDate={(iso) => setSelectedDate(iso)}
-          entries={dayItems}
-          loadingDate={loadingDate}
-        />
-
-        {/* debug removed */}
-
-        {selectedDate && (
-          <div className="mt-4">
-            <DayEditor
-              date={selectedDate}
-              initialItems={dayItems[selectedDate] ?? []}
-              isLoading={loadingDate === selectedDate}
-              currentUser={currentUser}
-              userGoals={userGoals}
-              onClose={() => setSelectedDate(null)}
-              onSave={async (itemsForDay) => {
-                // update local state
-                setDayItems((s) => ({ ...s, [selectedDate]: itemsForDay }));
-
-                if (currentUser) {
-                  // Authenticated user: save to Supabase only
-                  try {
-                    const created = await getOrCreateDayForUser(selectedDate);
-                    await persistDayItems(created.id, itemsForDay);
-                  } catch (e) {
-                    console.error('Failed to save day to user account:', e);
-
-                    // More specific error messages
-                    let errorMessage =
-                      'Failed to save data to your account. Please try again.';
-                    if (e instanceof Error) {
-                      if (
-                        e.message.includes(
-                          'relation "user_days" does not exist'
-                        )
-                      ) {
-                        errorMessage =
-                          'Database tables not set up. Please run the SQL setup scripts first. Check SETUP_DATABASE.md for instructions.';
-                      } else if (e.message.includes('User not authenticated')) {
-                        errorMessage =
-                          'You are not logged in. Please sign in and try again.';
-                      } else if (
-                        e.message.includes('permission denied') ||
-                        e.message.includes('RLS')
-                      ) {
-                        errorMessage =
-                          'Permission denied. Make sure Row Level Security is properly configured.';
-                      }
-                    }
-
-                    alert(errorMessage);
-                  }
-                  return;
-                }
-
-                // Unauthenticated user: save to legacy API (if available)
-                try {
-                  await fetch('/api/save-day', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      date: selectedDate,
-                      items: itemsForDay,
-                    }),
-                  });
-                } catch (e) {
-                  console.warn('Failed to save day to legacy API', e);
-                  // For unauthenticated users, localStorage is the primary storage
-                }
-              }}
-            />
+    <FavoritesProvider currentUser={stableCurrentUser}>
+      <div className="min-h-screen p-8 sm:p-12">
+        <header className="max-w-4xl mx-auto mb-6">
+          <div className="flex justify-between items-start mb-2">
+            <h1 className="text-2xl font-semibold">Food Nutrient Combiner</h1>
+            {currentUser && (
+              <button
+                onClick={() => setShowSettings(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm flex items-center gap-2"
+              >
+                ⚙️ Goals
+              </button>
+            )}
           </div>
-        )}
-      </div>
+          <p className="text-sm text-muted-foreground flex items-center gap-4">
+            <span>
+              Add foods from the food pyramid to calculate combined nutrients
+              and compare to RDI.
+            </span>
+            {currentUser && (
+              <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">
+                ✓ Data saves to your account
+              </span>
+            )}
+            {!currentUser && (
+              <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded text-xs">
+                ⚠ Data saves locally only
+              </span>
+            )}
+          </p>
+        </header>
 
-      <main className="max-w-4xl mx-auto">
-        {/* Combined nutrients + Compare chart side-by-side */}
-        <div className="grid md:grid-cols-2 gap-6">
-          <section>
-            <h3 className="font-medium">Combined nutrients</h3>
-            {/* main Add Food input removed */}
-            {/* favorites removed */}
-            <div className="mt-3 overflow-auto max-h-[360px] border rounded p-3 bg-white/50">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left">
-                    <th className="pb-2">Nutrient</th>
-                    <th className="pb-2">Total</th>
-                    <th className="pb-2">RDI</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {NUTRIENT_KEYS.map((k) => (
-                    <tr key={k} className="border-t">
-                      <td className="py-2">{NUTRIENT_DISPLAY[k] ?? k}</td>
-                      <td className="py-2">
-                        {Number((displayedTotals[k] ?? 0).toFixed(2))}{' '}
-                        {NUTRIENT_UNITS[k] ?? ''}
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          {(
-                            ((displayedTotals[k] ?? 0) /
-                              ((RDI as any)[k] || 1)) *
-                            100
-                          ).toFixed(0)}
-                          %
-                        </span>
-                      </td>
-                      <td className="py-2">
-                        {(RDI as any)[k]} {NUTRIENT_UNITS[k] ?? ''}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+        {/* Calendar at top */}
+        <div className="max-w-4xl mx-auto mb-6">
+          <h3 className="font-medium mb-3">Calendar</h3>
+          <Calendar
+            onSelectDate={(iso) => setSelectedDate(iso)}
+            entries={dayItems}
+            loadingDate={loadingDate}
+          />
 
-          <section>
-            <h3 className="font-medium mb-2">Compare to RDI</h3>
-            <div className="flex items-center gap-4 mb-3">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={percentMode}
-                  onChange={(e) => setPercentMode(e.target.checked)}
-                />
-                <span className="text-sm">Show percent-of-RDI</span>
-              </label>
-            </div>
-            <div className="border rounded p-2 bg-white/50">
-              <NutrientChart
-                nutrients={displayedTotals}
-                rdi={userGoals || RDI}
-                percentMode={percentMode}
-                showGoalProgress={!!userGoals}
+          {/* debug removed */}
+
+          {selectedDate && (
+            <div className="mt-4">
+              <DayEditor
+                date={selectedDate}
+                initialItems={dayItems[selectedDate] ?? []}
+                isLoading={loadingDate === selectedDate}
+                currentUser={currentUser}
+                userGoals={userGoals}
+                onClose={() => setSelectedDate(null)}
+                onSave={async (itemsForDay) => {
+                  // update local state
+                  setDayItems((s) => ({ ...s, [selectedDate]: itemsForDay }));
+
+                  if (currentUser) {
+                    // Authenticated user: save to Supabase only
+                    try {
+                      const created = await getOrCreateDayForUser(selectedDate);
+                      await persistDayItems(created.id, itemsForDay);
+                    } catch (e) {
+                      console.error('Failed to save day to user account:', e);
+
+                      // More specific error messages
+                      let errorMessage =
+                        'Failed to save data to your account. Please try again.';
+                      if (e instanceof Error) {
+                        if (
+                          e.message.includes(
+                            'relation "user_days" does not exist'
+                          )
+                        ) {
+                          errorMessage =
+                            'Database tables not set up. Please run the SQL setup scripts first. Check SETUP_DATABASE.md for instructions.';
+                        } else if (
+                          e.message.includes('User not authenticated')
+                        ) {
+                          errorMessage =
+                            'You are not logged in. Please sign in and try again.';
+                        } else if (
+                          e.message.includes('permission denied') ||
+                          e.message.includes('RLS')
+                        ) {
+                          errorMessage =
+                            'Permission denied. Make sure Row Level Security is properly configured.';
+                        }
+                      }
+
+                      alert(errorMessage);
+                    }
+                    return;
+                  }
+
+                  // Unauthenticated user: save to legacy API (if available)
+                  try {
+                    await fetch('/api/save-day', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        date: selectedDate,
+                        items: itemsForDay,
+                      }),
+                    });
+                  } catch (e) {
+                    console.warn('Failed to save day to legacy API', e);
+                    // For unauthenticated users, localStorage is the primary storage
+                  }
+                }}
               />
             </div>
-          </section>
+          )}
         </div>
-      </main>
 
-      {/* Import Modal */}
-      <ImportModal
-        isOpen={importModal.isOpen}
-        onClose={handleKeepServerData}
-        onImport={handleImportLocal}
-        date={importModal.date}
-        localItems={countItems(importModal.localData)}
-        serverItems={countItems(importModal.serverData)}
-      />
+        <main className="max-w-4xl mx-auto">
+          {/* Combined nutrients + Compare chart side-by-side */}
+          <div className="grid md:grid-cols-2 gap-6">
+            <section>
+              <h3 className="font-medium">Combined nutrients</h3>
+              {/* main Add Food input removed */}
+              {/* favorites removed */}
+              <div className="mt-3 overflow-auto max-h-[360px] border rounded p-3 bg-white/50">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left">
+                      <th className="pb-2">Nutrient</th>
+                      <th className="pb-2">Total</th>
+                      <th className="pb-2">RDI</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {NUTRIENT_KEYS.map((k) => (
+                      <tr key={k} className="border-t">
+                        <td className="py-2">{NUTRIENT_DISPLAY[k] ?? k}</td>
+                        <td className="py-2">
+                          {Number((displayedTotals[k] ?? 0).toFixed(2))}{' '}
+                          {NUTRIENT_UNITS[k] ?? ''}
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {(
+                              ((displayedTotals[k] ?? 0) /
+                                ((RDI as any)[k] || 1)) *
+                              100
+                            ).toFixed(0)}
+                            %
+                          </span>
+                        </td>
+                        <td className="py-2">
+                          {(RDI as any)[k]} {NUTRIENT_UNITS[k] ?? ''}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
 
-      {/* Settings Modal */}
-      <SettingsModal
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-        onSave={(settings) => {
-          setUserGoals({
-            calories: settings.daily_calories,
-            protein: settings.daily_protein,
-            carbs: settings.daily_carbs,
-            fat: settings.daily_fat,
-            fiber: settings.daily_fiber,
-            sodium: settings.daily_sodium,
-          });
-        }}
-      />
-    </div>
+            <section>
+              <h3 className="font-medium mb-2">Compare to RDI</h3>
+              <div className="flex items-center gap-4 mb-3">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={percentMode}
+                    onChange={(e) => setPercentMode(e.target.checked)}
+                  />
+                  <span className="text-sm">Show percent-of-RDI</span>
+                </label>
+              </div>
+              <div className="border rounded p-2 bg-white/50">
+                <NutrientChart
+                  nutrients={displayedTotals}
+                  rdi={userGoals || RDI}
+                  percentMode={percentMode}
+                  showGoalProgress={!!userGoals}
+                />
+              </div>
+            </section>
+          </div>
+        </main>
+
+        {/* Import Modal */}
+        <ImportModal
+          isOpen={importModal.isOpen}
+          onClose={handleKeepServerData}
+          onImport={handleImportLocal}
+          date={importModal.date}
+          localItems={countItems(importModal.localData)}
+          serverItems={countItems(importModal.serverData)}
+        />
+
+        {/* Settings Modal */}
+        <SettingsModal
+          isOpen={showSettings}
+          onClose={() => setShowSettings(false)}
+          onSave={(settings) => {
+            setUserGoals({
+              calories: settings.daily_calories,
+              protein: settings.daily_protein,
+              carbs: settings.daily_carbs,
+              fat: settings.daily_fat,
+              fiber: settings.daily_fiber,
+              sodium: settings.daily_sodium,
+            });
+          }}
+        />
+      </div>
+    </FavoritesProvider>
   );
 }
 
@@ -682,6 +768,14 @@ export function DayEditor({
   const [query, setQuery] = useState('');
   const [saved, setSaved] = useState(false);
   const [selIdx, setSelIdx] = useState(-1);
+
+  // Collapsible sections state - start closed by default
+  const [isCollapsed, setIsCollapsed] = useState({
+    favorites: true,
+    recommendations: true,
+    restaurants: true,
+  });
+
   const available = useMemo(() => Object.keys(FOOD_DB), []);
   // cache for remote-loaded profiles (id -> { profile, ts })
   const [profileCache, setProfileCache] = useState<
@@ -899,56 +993,96 @@ export function DayEditor({
       </div>
 
       <div>
-        {/* Recent Foods Section */}
-        {currentUser && query === '' && (
-          <div className="mb-4 border rounded-lg p-3 bg-gray-50">
-            <RecentFoods
-              currentUser={currentUser}
-              onSelectFood={(foodId) => addFoodToDay(foodId)}
-            />
-          </div>
-        )}
-
         {/* Favorite Foods Section */}
         {currentUser && query === '' && (
-          <div className="mb-4">
-            <FavoriteFoods
-              currentUser={currentUser}
-              onSelectFood={(foodId) => addFoodToDay(foodId)}
-            />
-          </div>
+          <Collapsible
+            open={!isCollapsed.favorites}
+            onOpenChange={(open) =>
+              setIsCollapsed((prev) => ({ ...prev, favorites: !open }))
+            }
+            className="mb-4"
+          >
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border transition-colors">
+              <h3 className="font-medium text-gray-900">Favorite Foods</h3>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${
+                  isCollapsed.favorites ? 'rotate-180' : ''
+                }`}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3">
+              <FavoriteFoods
+                currentUser={currentUser}
+                onSelectFood={(foodId) => addFoodToDay(foodId)}
+              />
+            </CollapsibleContent>
+          </Collapsible>
         )}
 
         {/* Smart Recommendations Section */}
         {currentUser && query === '' && (
-          <div className="mb-4">
-            <SmartRecommendations
-              currentNutrition={(() => {
-                // Calculate current day's nutrition for recommendations
-                const dayTotals = combineDayMealsWithQty(localItems);
-                return {
-                  calories: dayTotals.calories || 0,
-                  protein: dayTotals.protein || 0,
-                  carbs: dayTotals.carbs || 0,
-                  fat: dayTotals.fat || 0,
-                  fiber: dayTotals.fiber || 0,
-                  sodium: dayTotals.sodium || 0,
-                };
-              })()}
-              userGoals={userGoals}
-              onSelectFood={(foodId) => addFoodToDay(foodId)}
-            />
-          </div>
+          <Collapsible
+            open={!isCollapsed.recommendations}
+            onOpenChange={(open) =>
+              setIsCollapsed((prev) => ({ ...prev, recommendations: !open }))
+            }
+            className="mb-4"
+          >
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border transition-colors">
+              <h3 className="font-medium text-gray-900">
+                Smart Recommendations
+              </h3>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${
+                  isCollapsed.recommendations ? 'rotate-180' : ''
+                }`}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3">
+              <SmartRecommendations
+                currentNutrition={(() => {
+                  // Calculate current day's nutrition for recommendations
+                  const dayTotals = combineDayMealsWithQty(localItems);
+                  return {
+                    calories: dayTotals.calories || 0,
+                    protein: dayTotals.protein || 0,
+                    carbs: dayTotals.carbs || 0,
+                    fat: dayTotals.fat || 0,
+                    fiber: dayTotals.fiber || 0,
+                    sodium: dayTotals.sodium || 0,
+                  };
+                })()}
+                userGoals={userGoals}
+                onSelectFood={(foodId) => addFoodToDay(foodId)}
+              />
+            </CollapsibleContent>
+          </Collapsible>
         )}
 
         {/* Restaurant Foods Section */}
         {query === '' && (
-          <div className="mb-4">
-            <RestaurantFoods
-              onSelectFood={(foodId) => addFoodToDay(foodId)}
-              currentUser={currentUser}
-            />
-          </div>
+          <Collapsible
+            open={!isCollapsed.restaurants}
+            onOpenChange={(open) =>
+              setIsCollapsed((prev) => ({ ...prev, restaurants: !open }))
+            }
+            className="mb-4"
+          >
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border transition-colors">
+              <h3 className="font-medium text-gray-900">Restaurant Foods</h3>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${
+                  isCollapsed.restaurants ? 'rotate-180' : ''
+                }`}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3">
+              <RestaurantFoods
+                onSelectFood={(foodId) => addFoodToDay(foodId)}
+                currentUser={currentUser}
+              />
+            </CollapsibleContent>
+          </Collapsible>
         )}
 
         <div className="flex gap-2 mb-2">
@@ -1139,3 +1273,6 @@ export function DayEditor({
     </div>
   );
 }
+
+// Wrap in React.memo to prevent unnecessary re-renders
+export default React.memo(Home);

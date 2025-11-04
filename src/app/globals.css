@@ -1,5 +1,20 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Prevent scroll restoration and unwanted behaviors on tab focus */
+html {
+  scroll-restoration: manual;
+}
+
+/* Prevent focus-related scroll jumping */
+body {
+  scroll-behavior: auto;
+}
+
+/* Prevent automatic scroll adjustments */
+*:focus {
+  scroll-margin: 0;
+}
 
 @custom-variant dark (&:is(.dark *));
 

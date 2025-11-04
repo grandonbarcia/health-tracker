@@ -1,6 +1,6 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { useState, memo } from 'react';
+import { useFavorites } from '../contexts/FavoritesContext';
 
 interface Props {
   foodId: string;
@@ -10,119 +10,39 @@ interface Props {
   className?: string;
 }
 
-export default function FavoriteButton({
+const FavoriteButton = memo(function FavoriteButton({
   foodId,
   foodType = 'regular',
   currentUser,
   size = 'md',
   className = '',
 }: Props) {
-  const [isFavorite, setIsFavorite] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // Check if food is favorited when component mounts
-  useEffect(() => {
-    if (!currentUser || !foodId) return;
-    checkFavoriteStatus();
-  }, [currentUser, foodId]);
-
-  const checkFavoriteStatus = async () => {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const response = await fetch('/api/favorites', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const isInFavorites = data.favorites?.some(
-          (fav: any) => fav.food_id === foodId
-        );
-        setIsFavorite(isInFavorites || false);
-      }
-    } catch (error) {
-      console.error('Error checking favorite status:', error);
-    }
-  };
+  const { isFavorite, addFavorite, removeFavorite } = useFavorites();
 
   const toggleFavorite = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent parent click events
+    e.stopPropagation();
 
     if (!currentUser || loading) return;
 
     setLoading(true);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) {
-        console.error('No session found');
-        return;
-      }
+      const isCurrentlyFavorite = isFavorite(foodId);
 
-      if (isFavorite) {
-        // Remove from favorites
-        const response = await fetch(
-          `/api/favorites?food_id=${encodeURIComponent(foodId)}`,
-          {
-            method: 'DELETE',
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-            },
-          }
-        );
-
-        const data = await response.json();
-
-        if (response.ok) {
-          setIsFavorite(false);
-          console.log('Removed from favorites:', data.message);
-        } else {
-          console.error('Failed to remove favorite:', data.error);
-          // Show error feedback
-          alert(data.error || 'Failed to remove from favorites');
-        }
+      if (isCurrentlyFavorite) {
+        await removeFavorite(foodId);
       } else {
-        // Add to favorites
-        const response = await fetch('/api/favorites', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            food_id: foodId,
-            food_type: foodType,
-          }),
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-          setIsFavorite(true);
-          console.log('Added to favorites:', data.message);
-        } else {
-          console.error('Failed to add favorite:', data.error);
-          // Show error feedback
-          alert(data.error || 'Failed to add to favorites');
-        }
+        await addFavorite(foodId, foodType);
       }
     } catch (error) {
       console.error('Error toggling favorite:', error);
-      alert('An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   if (!currentUser) {
-    return null; // Don't show favorite button for unauthenticated users
+    return null;
   }
 
   const sizeClasses = {
@@ -132,6 +52,7 @@ export default function FavoriteButton({
   };
 
   const iconClasses = sizeClasses[size];
+  const isCurrentlyFavorite = isFavorite(foodId);
 
   return (
     <button
@@ -147,15 +68,17 @@ export default function FavoriteButton({
         transition-all duration-150 rounded
         ${className}
       `}
-      title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+      title={isCurrentlyFavorite ? 'Remove from favorites' : 'Add to favorites'}
     >
       {loading ? (
         <span className="text-gray-400">⏳</span>
-      ) : isFavorite ? (
+      ) : isCurrentlyFavorite ? (
         <span className="text-red-500">❤️</span>
       ) : (
         <span className="text-gray-400 hover:text-red-500">🤍</span>
       )}
     </button>
   );
-}
+});
+
+export default FavoriteButton;

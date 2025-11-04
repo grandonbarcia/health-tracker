@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -23,20 +23,39 @@ export default function Navbar() {
   const [error, setError] = useState('');
   const [user, setUser] = useState<any>(null);
 
+  // Track current user ID to prevent unnecessary re-renders
+  const currentUserIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
-      setUser((data as any).session?.user ?? null);
+      const sessionUser = (data as any).session?.user ?? null;
+      setUser(sessionUser);
+      currentUserIdRef.current = sessionUser?.id || null;
     })();
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        setUser(session?.user ?? null);
-        if (event === 'SIGNED_IN' && session) {
-          setIsDialogOpen(false);
-          router.push('/dashboard');
+        const newUser = session?.user ?? null;
+        const currentUserId = currentUserIdRef.current;
+        const newUserId = newUser?.id || null;
+
+        // Ignore SIGNED_IN events if user hasn't actually changed
+        if (event === 'SIGNED_IN' && currentUserId === newUserId) {
+          return;
+        }
+
+        // Only update state if user actually changed
+        if (currentUserId !== newUserId) {
+          setUser(newUser);
+          currentUserIdRef.current = newUserId;
+
+          if (event === 'SIGNED_IN' && session) {
+            setIsDialogOpen(false);
+            router.push('/dashboard');
+          }
         }
       }
     );

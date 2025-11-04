@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { useFavorites } from '../contexts/FavoritesContext';
+import { FOOD_DB } from '../lib/nutrients';
+import { RESTAURANT_FOODS } from '../lib/restaurantFoods';
 
 interface FavoriteFood {
   id: string;
@@ -20,93 +22,46 @@ export default function FavoriteFoods({
   onSelectFood,
   className = '',
 }: Props) {
-  const [favorites, setFavorites] = useState<FavoriteFood[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { favorites, loading, removeFavorite } = useFavorites();
   const [foodDetails, setFoodDetails] = useState<Record<string, any>>({});
 
-  // Load user's favorites
+  // Load food details when favorites change
   useEffect(() => {
-    if (!currentUser) {
-      setLoading(false);
-      return;
+    if (favorites.length > 0) {
+      loadFoodDetails(favorites);
+    } else {
+      setFoodDetails({});
     }
-
-    loadFavorites();
-  }, [currentUser]);
-
-  const loadFavorites = async () => {
-    try {
-      setLoading(true);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const response = await fetch('/api/favorites', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setFavorites(data.favorites || []);
-
-        // Load food details for each favorite
-        await loadFoodDetails(data.favorites || []);
-      }
-    } catch (error) {
-      console.error('Error loading favorites:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [favorites]);
 
   const loadFoodDetails = async (favoritesData: FavoriteFood[]) => {
     const details: Record<string, any> = {};
 
     for (const fav of favoritesData) {
-      try {
-        const response = await fetch(
-          `/api/food/${encodeURIComponent(fav.food_id)}`
-        );
-        if (response.ok) {
-          const foodData = await response.json();
-          details[fav.food_id] = foodData;
-        }
-      } catch (error) {
-        console.error(`Error loading food details for ${fav.food_id}:`, error);
+      const foodDetail = getFoodDetail(fav.food_id, fav.food_type);
+      if (foodDetail) {
+        details[fav.food_id] = foodDetail;
       }
     }
 
     setFoodDetails(details);
   };
 
-  const removeFavorite = async (foodId: string) => {
+  const getFoodDetail = (foodId: string, foodType: string) => {
+    if (foodType === 'restaurant') {
+      // RESTAURANT_FOODS is an object, so we need to convert to array and find
+      const restaurantFoodsArray = Object.values(RESTAURANT_FOODS);
+      return restaurantFoodsArray.find((food: any) => food.id === foodId);
+    } else {
+      // FOOD_DB is also an object
+      return FOOD_DB[foodId];
+    }
+  };
+
+  const handleRemoveFavorite = async (foodId: string) => {
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const response = await fetch(
-        `/api/favorites?food_id=${encodeURIComponent(foodId)}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        }
-      );
-
-      if (response.ok) {
-        setFavorites((prev) => prev.filter((fav) => fav.food_id !== foodId));
-        setFoodDetails((prev) => {
-          const updated = { ...prev };
-          delete updated[foodId];
-          return updated;
-        });
-      }
+      await removeFavorite(foodId);
+      // The favorites will be automatically updated through the context
     } catch (error) {
       console.error('Error removing favorite:', error);
     }
@@ -166,7 +121,7 @@ export default function FavoriteFoods({
                   favorite={favorite}
                   food={food}
                   onSelect={() => onSelectFood(favorite.food_id)}
-                  onRemove={() => removeFavorite(favorite.food_id)}
+                  onRemove={() => handleRemoveFavorite(favorite.food_id)}
                 />
               );
             })}
