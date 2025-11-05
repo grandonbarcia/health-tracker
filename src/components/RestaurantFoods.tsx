@@ -76,7 +76,7 @@ export default function RestaurantFoods({
               setSelectedRestaurant(e.target.value);
               setSelectedCategory('all'); // Reset category when restaurant changes
             }}
-            className="w-full text-sm border border-orange-200 rounded px-2 py-1 bg-white"
+            className="w-full text-sm border border-orange-200 dark:border-orange-800 rounded px-2 py-1 bg-card"
           >
             <option value="all">All Restaurants ({RESTAURANTS.length})</option>
             {RESTAURANTS.map((restaurant) => (
@@ -88,13 +88,13 @@ export default function RestaurantFoods({
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-orange-800 mb-1">
+          <label className="block text-xs font-medium text-orange-800 dark:text-orange-300 mb-1">
             Category
           </label>
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="w-full text-sm border border-orange-200 rounded px-2 py-1 bg-white"
+            className="w-full text-sm border border-orange-200 dark:border-orange-800 rounded px-2 py-1 bg-card"
           >
             <option value="all">All Categories</option>
             {availableCategories.map((category: string) => (
@@ -148,7 +148,7 @@ function RestaurantFoodCard({
   onSelect: () => void;
 }) {
   return (
-    <div className="relative p-3 bg-white rounded border border-orange-200 hover:border-orange-300 hover:bg-orange-25 transition-all">
+    <div className="relative p-3 bg-card rounded border border-orange-200 dark:border-orange-800 hover:border-orange-300 dark:hover:border-orange-700 hover:bg-muted/50 transition-all">
       {/* Favorite Button */}
       {currentUser && (
         <div className="absolute top-2 right-2">
