@@ -13,18 +13,21 @@ import {
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-background to-background">
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-20 md:py-32">
         <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-block mb-4 px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+          <div className="inline-block mb-4 px-4 py-2 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded-full text-sm font-medium">
             🎉 Your Personal Nutrition Coach
           </div>
-          <h1 className="text-5xl md:text-7xl font-bold mb-6 text-slate-900 leading-tight">
+          <h1 className="text-5xl md:text-7xl font-bold mb-6 text-foreground leading-tight">
             Track Your Nutrition,
-            <span className="text-green-600"> Transform Your Health</span>
+            <span className="text-green-600 dark:text-green-500">
+              {' '}
+              Transform Your Health
+            </span>
           </h1>
-          <p className="text-xl md:text-2xl text-slate-600 mb-10 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-xl md:text-2xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
             Make informed decisions about your diet with powerful nutrient
             tracking, meal analysis, and personalized insights.
           </p>
@@ -50,103 +53,103 @@ export default function LandingPage() {
       </section>
 
       {/* Features Section */}
-      <section className="container mx-auto px-4 py-20 bg-white">
+      <section className="container mx-auto px-4 py-20">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-slate-900">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-foreground">
               Everything You Need to Succeed
             </h2>
-            <p className="text-xl text-slate-600 max-w-2xl mx-auto">
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Powerful features designed to help you understand and improve your
               nutrition
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <Card className="border-2 hover:border-green-200 transition-all hover:shadow-lg">
+            <Card className="border-2 hover:border-green-500/50 dark:hover:border-green-500/50 transition-all hover:shadow-lg">
               <CardContent className="pt-8 pb-8 px-6">
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                  <Apple className="w-6 h-6 text-green-600" />
+                <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mb-4">
+                  <Apple className="w-6 h-6 text-green-600 dark:text-green-400" />
                 </div>
-                <h3 className="text-xl font-bold mb-3 text-slate-900">
+                <h3 className="text-xl font-bold mb-3 text-foreground">
                   Smart Food Tracking
                 </h3>
-                <p className="text-slate-600 leading-relaxed">
+                <p className="text-muted-foreground leading-relaxed">
                   Log meals organized by breakfast, lunch, and dinner with our
                   intuitive interface. Never lose track of what you eat.
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="border-2 hover:border-green-200 transition-all hover:shadow-lg">
+            <Card className="border-2 hover:border-green-500/50 dark:hover:border-green-500/50 transition-all hover:shadow-lg">
               <CardContent className="pt-8 pb-8 px-6">
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                  <BarChart3 className="w-6 h-6 text-blue-600" />
+                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mb-4">
+                  <BarChart3 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                 </div>
-                <h3 className="text-xl font-bold mb-3 text-slate-900">
+                <h3 className="text-xl font-bold mb-3 text-foreground">
                   Nutrient Analysis
                 </h3>
-                <p className="text-slate-600 leading-relaxed">
+                <p className="text-muted-foreground leading-relaxed">
                   Get detailed breakdowns of macros, vitamins, and minerals.
                   Compare your intake against recommended daily values.
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="border-2 hover:border-green-200 transition-all hover:shadow-lg">
+            <Card className="border-2 hover:border-green-500/50 dark:hover:border-green-500/50 transition-all hover:shadow-lg">
               <CardContent className="pt-8 pb-8 px-6">
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                  <Calendar className="w-6 h-6 text-purple-600" />
+                <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center mb-4">
+                  <Calendar className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                 </div>
-                <h3 className="text-xl font-bold mb-3 text-slate-900">
+                <h3 className="text-xl font-bold mb-3 text-foreground">
                   Calendar View
                 </h3>
-                <p className="text-slate-600 leading-relaxed">
+                <p className="text-muted-foreground leading-relaxed">
                   Visualize your nutrition journey over time. Identify patterns
                   and track your progress with an elegant calendar interface.
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="border-2 hover:border-green-200 transition-all hover:shadow-lg">
+            <Card className="border-2 hover:border-green-500/50 dark:hover:border-green-500/50 transition-all hover:shadow-lg">
               <CardContent className="pt-8 pb-8 px-6">
-                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
-                  <TrendingUp className="w-6 h-6 text-orange-600" />
+                <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900 rounded-lg flex items-center justify-center mb-4">
+                  <TrendingUp className="w-6 h-6 text-orange-600 dark:text-orange-400" />
                 </div>
-                <h3 className="text-xl font-bold mb-3 text-slate-900">
+                <h3 className="text-xl font-bold mb-3 text-foreground">
                   Progress Tracking
                 </h3>
-                <p className="text-slate-600 leading-relaxed">
+                <p className="text-muted-foreground leading-relaxed">
                   Monitor your daily, weekly, and monthly nutrition trends. See
                   how your habits improve over time.
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="border-2 hover:border-green-200 transition-all hover:shadow-lg">
+            <Card className="border-2 hover:border-green-500/50 dark:hover:border-green-500/50 transition-all hover:shadow-lg">
               <CardContent className="pt-8 pb-8 px-6">
-                <div className="w-12 h-12 bg-pink-100 rounded-lg flex items-center justify-center mb-4">
-                  <Users className="w-6 h-6 text-pink-600" />
+                <div className="w-12 h-12 bg-pink-100 dark:bg-pink-900 rounded-lg flex items-center justify-center mb-4">
+                  <Users className="w-6 h-6 text-pink-600 dark:text-pink-400" />
                 </div>
-                <h3 className="text-xl font-bold mb-3 text-slate-900">
+                <h3 className="text-xl font-bold mb-3 text-foreground">
                   Personal Account
                 </h3>
-                <p className="text-slate-600 leading-relaxed">
+                <p className="text-muted-foreground leading-relaxed">
                   Keep your data secure with user authentication. Access your
                   nutrition history from any device.
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="border-2 hover:border-green-200 transition-all hover:shadow-lg">
+            <Card className="border-2 hover:border-green-500/50 dark:hover:border-green-500/50 transition-all hover:shadow-lg">
               <CardContent className="pt-8 pb-8 px-6">
-                <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
-                  <Star className="w-6 h-6 text-indigo-600" />
+                <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900 rounded-lg flex items-center justify-center mb-4">
+                  <Star className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
                 </div>
-                <h3 className="text-xl font-bold mb-3 text-slate-900">
+                <h3 className="text-xl font-bold mb-3 text-foreground">
                   Data Insights
                 </h3>
-                <p className="text-slate-600 leading-relaxed">
+                <p className="text-muted-foreground leading-relaxed">
                   Get actionable insights about your eating habits. Understand
                   which nutrients you're getting enough of—or not.
                 </p>
@@ -157,19 +160,19 @@ export default function LandingPage() {
       </section>
 
       {/* Testimonials Section */}
-      <section className="container mx-auto px-4 py-20 bg-slate-50">
+      <section className="container mx-auto px-4 py-20 bg-muted/30">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-slate-900">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-foreground">
               Loved by Health-Conscious Users
             </h2>
-            <p className="text-xl text-slate-600">
+            <p className="text-xl text-muted-foreground">
               See what people are saying about Health Tracker
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            <Card className="bg-white">
+            <Card>
               <CardContent className="pt-8 pb-8 px-6">
                 <div className="flex mb-4">
                   {[...Array(5)].map((_, i) => (
@@ -179,20 +182,20 @@ export default function LandingPage() {
                     />
                   ))}
                 </div>
-                <p className="text-slate-600 mb-6 leading-relaxed">
+                <p className="text-muted-foreground mb-6 leading-relaxed">
                   "This app has completely changed how I think about food. The
                   nutrient breakdowns are eye-opening and helped me fix my
                   diet."
                 </p>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center font-bold text-green-700">
+                  <div className="w-10 h-10 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center font-bold text-green-700 dark:text-green-300">
                     SJ
                   </div>
                   <div>
-                    <div className="font-semibold text-slate-900">
+                    <div className="font-semibold text-foreground">
                       Sarah Johnson
                     </div>
-                    <div className="text-sm text-slate-500">
+                    <div className="text-sm text-muted-foreground">
                       Fitness Enthusiast
                     </div>
                   </div>
@@ -200,7 +203,7 @@ export default function LandingPage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-white">
+            <Card>
               <CardContent className="pt-8 pb-8 px-6">
                 <div className="flex mb-4">
                   {[...Array(5)].map((_, i) => (
@@ -210,20 +213,20 @@ export default function LandingPage() {
                     />
                   ))}
                 </div>
-                <p className="text-slate-600 mb-6 leading-relaxed">
+                <p className="text-muted-foreground mb-6 leading-relaxed">
                   "Finally, a nutrition tracker that's simple and doesn't
                   overwhelm you. The meal grouping feature makes logging so much
                   easier."
                 </p>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-700">
+                  <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center font-bold text-blue-700 dark:text-blue-300">
                     MC
                   </div>
                   <div>
-                    <div className="font-semibold text-slate-900">
+                    <div className="font-semibold text-foreground">
                       Michael Chen
                     </div>
-                    <div className="text-sm text-slate-500">
+                    <div className="text-sm text-muted-foreground">
                       Busy Professional
                     </div>
                   </div>
@@ -231,7 +234,7 @@ export default function LandingPage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-white">
+            <Card>
               <CardContent className="pt-8 pb-8 px-6">
                 <div className="flex mb-4">
                   {[...Array(5)].map((_, i) => (
@@ -241,19 +244,19 @@ export default function LandingPage() {
                     />
                   ))}
                 </div>
-                <p className="text-slate-600 mb-6 leading-relaxed">
+                <p className="text-muted-foreground mb-6 leading-relaxed">
                   "I love the calendar view! Being able to see my nutrition
                   history at a glance keeps me motivated and accountable."
                 </p>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center font-bold text-purple-700">
+                  <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center font-bold text-purple-700 dark:text-purple-300">
                     ER
                   </div>
                   <div>
-                    <div className="font-semibold text-slate-900">
+                    <div className="font-semibold text-foreground">
                       Emily Rodriguez
                     </div>
-                    <div className="text-sm text-slate-500">
+                    <div className="text-sm text-muted-foreground">
                       Nutrition Student
                     </div>
                   </div>
@@ -266,7 +269,7 @@ export default function LandingPage() {
 
       {/* CTA Section */}
       <section className="container mx-auto px-4 py-20">
-        <div className="max-w-4xl mx-auto text-center bg-gradient-to-r from-green-600 to-green-700 rounded-2xl p-12 md:p-16 text-white">
+        <div className="max-w-4xl mx-auto text-center bg-gradient-to-r from-green-600 to-green-700 dark:from-green-700 dark:to-green-800 rounded-2xl p-12 md:p-16 text-white">
           <h2 className="text-4xl md:text-5xl font-bold mb-6">
             Ready to Transform Your Health?
           </h2>
@@ -276,7 +279,7 @@ export default function LandingPage() {
           <Button
             asChild
             size="lg"
-            className="bg-white text-green-700 hover:bg-slate-100 text-lg px-8 py-6"
+            className="bg-white text-green-700 hover:bg-slate-100 dark:hover:bg-slate-200 text-lg px-8 py-6"
           >
             <Link href="/dashboard">Start Tracking Today</Link>
           </Button>
@@ -284,7 +287,7 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-slate-900 text-slate-300 py-12">
+      <footer className="bg-slate-900 dark:bg-slate-950 text-slate-300 dark:text-slate-400 py-12">
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-4 gap-8 max-w-6xl mx-auto">
             <div>
@@ -369,7 +372,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="border-t border-slate-800 mt-12 pt-8 text-center text-sm">
+          <div className="border-t border-slate-800 dark:border-slate-900 mt-12 pt-8 text-center text-sm">
             <p>© 2025 Health Tracker. All rights reserved.</p>
           </div>
         </div>

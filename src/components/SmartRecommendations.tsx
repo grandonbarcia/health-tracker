@@ -46,10 +46,10 @@ export default function SmartRecommendations({
   }
 
   return (
-    <div className={`bg-blue-50 rounded-lg p-4 ${className}`}>
+    <div className={`bg-blue-50 dark:bg-blue-950 rounded-lg p-4 ${className}`}>
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-blue-600">🤖</span>
-        <h3 className="font-semibold text-blue-900 text-sm">
+        <span className="text-blue-600 dark:text-blue-400">🤖</span>
+        <h3 className="font-semibold text-blue-900 dark:text-blue-100 text-sm">
           Smart Recommendations
         </h3>
       </div>
@@ -96,9 +96,9 @@ function RecommendationCard({
   return (
     <button
       onClick={onSelect}
-      className="text-left p-3 bg-white rounded border border-blue-200 hover:border-blue-300 hover:bg-blue-25 transition-all text-sm"
+      className="text-left p-3 bg-card rounded border border-blue-200 dark:border-blue-800 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-muted/50 transition-all text-sm"
     >
-      <div className="font-medium text-gray-900 mb-1">
+      <div className="font-medium text-foreground mb-1">
         {recommendation.foodName}
       </div>
 
@@ -108,7 +108,7 @@ function RecommendationCard({
           {recommendation.nutritionHighlights.map((highlight, index) => (
             <span
               key={index}
-              className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded"
+              className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 px-2 py-1 rounded"
             >
               {highlight.amount}
               {highlight.unit} {highlight.nutrient}

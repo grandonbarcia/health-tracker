@@ -114,13 +114,13 @@ export default function SettingsModal({ isOpen, onClose, onSave }: Props) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4">Nutrition Goals</h2>
+    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50">
+      <div className="bg-card rounded-lg p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto border border-border">
+        <h2 className="text-xl font-bold mb-4 text-foreground">Nutrition Goals</h2>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label className="block text-sm font-medium mb-1 text-foreground">
               Daily Calories
             </label>
             <input
@@ -285,14 +285,14 @@ export default function SettingsModal({ isOpen, onClose, onSave }: Props) {
         <div className="flex gap-3 mt-6">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 text-gray-700 border rounded hover:bg-gray-50"
+            className="flex-1 px-4 py-2 text-foreground border border-border rounded hover:bg-muted"
             disabled={loading}
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            className="flex-1 px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50"
             disabled={loading}
           >
             {loading ? 'Saving...' : 'Save Goals'}

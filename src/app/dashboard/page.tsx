@@ -505,13 +505,13 @@ function Home() {
           {/* Combined nutrients + Compare chart side-by-side */}
           <div className="grid md:grid-cols-2 gap-6">
             <section>
-              <h3 className="font-medium">Combined nutrients</h3>
+              <h3 className="font-medium text-foreground">Combined nutrients</h3>
               {/* main Add Food input removed */}
               {/* favorites removed */}
-              <div className="mt-3 overflow-auto max-h-[360px] border rounded p-3 bg-white/50">
+              <div className="mt-3 overflow-auto max-h-[360px] border border-border rounded p-3 bg-card">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left">
+                    <tr className="text-left text-muted-foreground">
                       <th className="pb-2">Nutrient</th>
                       <th className="pb-2">Total</th>
                       <th className="pb-2">RDI</th>
@@ -552,10 +552,10 @@ function Home() {
                     checked={percentMode}
                     onChange={(e) => setPercentMode(e.target.checked)}
                   />
-                  <span className="text-sm">Show percent-of-RDI</span>
+                  <span className="text-sm text-foreground">Show percent-of-RDI</span>
                 </label>
               </div>
-              <div className="border rounded p-2 bg-white/50">
+              <div className="border border-border rounded p-2 bg-card">
                 <NutrientChart
                   nutrients={displayedTotals}
                   rdi={userGoals || RDI}
@@ -659,15 +659,15 @@ export function Calendar({
   ];
 
   return (
-    <div className="border rounded p-4 bg-white/50">
+    <div className="border border-border rounded p-4 bg-card">
       {/* Month and Year Header */}
       <div className="text-center mb-4">
-        <h2 className="text-lg font-semibold text-gray-800">
+        <h2 className="text-lg font-semibold text-foreground">
           {monthNames[month]} {year}
         </h2>
       </div>
 
-      <div className="grid grid-cols-7 gap-2 text-xs text-center font-medium mb-2">
+      <div className="grid grid-cols-7 gap-2 text-xs text-center font-medium mb-2 text-muted-foreground">
         {weekDays.map((w) => (
           <div key={w}>{w}</div>
         ))}
@@ -680,16 +680,16 @@ export function Calendar({
               key={idx}
               disabled={!c.iso || isLoading}
               onClick={() => c.iso && onSelectDate(c.iso)}
-              className={`h-20 p-2 text-left rounded border flex flex-col justify-between hover:shadow ${
+              className={`h-20 p-2 text-left rounded border border-border flex flex-col justify-between hover:shadow transition-colors ${
                 c.iso &&
                 entries[c.iso] &&
                 (entries[c.iso].breakfast?.length || 0) +
                   (entries[c.iso].lunch?.length || 0) +
                   (entries[c.iso].dinner?.length || 0) >
                   0
-                  ? 'bg-green-50'
-                  : 'bg-white'
-              } ${c.iso === todayIso ? 'ring-2 ring-yellow-300' : ''} ${
+                  ? 'bg-green-50 dark:bg-green-950'
+                  : 'bg-card hover:bg-muted/50'
+              } ${c.iso === todayIso ? 'ring-2 ring-yellow-400 dark:ring-yellow-500' : ''} ${
                 isLoading ? 'opacity-60' : ''
               }`}
             >
@@ -957,19 +957,19 @@ export function DayEditor({
       : suggestions.map((s) => ({ id: s, name: s }))) ?? [];
 
   return (
-    <div className="mt-4 border rounded p-4 bg-white/60">
+    <div className="mt-4 border border-border rounded p-4 bg-card">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h4 className="font-medium">
+          <h4 className="font-medium text-foreground">
             {parseIsoLocal(date).toLocaleDateString()}
           </h4>
           <div className="text-sm text-muted-foreground flex gap-3 items-center">
             <span>Add/view foods for this day</span>
-            <span className="text-[12px] px-2 py-1 bg-slate-100 rounded">
+            <span className="text-[12px] px-2 py-1 bg-muted rounded">
               ISO: {date}
             </span>
             {saved && (
-              <span className="text-[12px] px-2 py-1 bg-green-100 text-green-800 rounded">
+              <span className="text-[12px] px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded">
                 Saved
               </span>
             )}
@@ -1002,8 +1002,8 @@ export function DayEditor({
             }
             className="mb-4"
           >
-            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border transition-colors">
-              <h3 className="font-medium text-gray-900">Favorite Foods</h3>
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-muted hover:bg-muted/80 rounded-lg border border-border transition-colors">
+              <h3 className="font-medium text-foreground">Favorite Foods</h3>
               <ChevronDown
                 className={`h-4 w-4 transition-transform ${
                   isCollapsed.favorites ? 'rotate-180' : ''
@@ -1028,8 +1028,8 @@ export function DayEditor({
             }
             className="mb-4"
           >
-            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border transition-colors">
-              <h3 className="font-medium text-gray-900">
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-muted hover:bg-muted/80 rounded-lg border border-border transition-colors">
+              <h3 className="font-medium text-foreground">
                 Smart Recommendations
               </h3>
               <ChevronDown
@@ -1068,8 +1068,8 @@ export function DayEditor({
             }
             className="mb-4"
           >
-            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border transition-colors">
-              <h3 className="font-medium text-gray-900">Restaurant Foods</h3>
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-muted hover:bg-muted/80 rounded-lg border border-border transition-colors">
+              <h3 className="font-medium text-foreground">Restaurant Foods</h3>
               <ChevronDown
                 className={`h-4 w-4 transition-transform ${
                   isCollapsed.restaurants ? 'rotate-180' : ''
@@ -1200,14 +1200,14 @@ export function DayEditor({
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   ></path>
                 </svg>
-                <p className="text-sm text-slate-600">Loading foods...</p>
+                <p className="text-sm text-muted-foreground">Loading foods...</p>
               </div>
             </div>
           ) : (
             <div className="grid gap-4">
               {(['breakfast', 'lunch', 'dinner'] as const).map((meal) => (
                 <div key={meal}>
-                  <h6 className="font-medium capitalize">{meal}</h6>
+                  <h6 className="font-medium capitalize text-foreground">{meal}</h6>
                   <ul className="space-y-2 mt-2">
                     {(localItems[meal] ?? []).map((it, i) => (
                       <li

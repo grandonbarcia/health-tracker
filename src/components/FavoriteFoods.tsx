@@ -145,8 +145,8 @@ function FavoriteFoodCard({
 }) {
   if (!food) {
     return (
-      <div className="p-2 bg-white rounded border border-pink-200">
-        <div className="text-xs text-gray-500">
+      <div className="p-2 bg-card rounded border border-pink-200 dark:border-pink-800">
+        <div className="text-xs text-muted-foreground">
           Loading {favorite.food_id}...
         </div>
       </div>
@@ -154,12 +154,12 @@ function FavoriteFoodCard({
   }
 
   return (
-    <div className="flex items-center gap-2 p-2 bg-white rounded border border-pink-200 hover:border-pink-300 transition-all">
+    <div className="flex items-center gap-2 p-2 bg-card rounded border border-pink-200 dark:border-pink-800 hover:border-pink-300 dark:hover:border-pink-700 transition-all">
       <button onClick={onSelect} className="flex-1 text-left">
-        <div className="font-medium text-gray-900 text-sm">
+        <div className="font-medium text-foreground text-sm">
           {food.name || favorite.food_id}
         </div>
-        <div className="flex items-center gap-2 text-xs text-gray-600">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>{food.calories || 0} cal</span>
           {food.serving && <span>• {food.serving}</span>}
           {favorite.food_type === 'restaurant' && (
