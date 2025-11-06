@@ -190,47 +190,52 @@ export default function NutrientChart({
       </div>
 
       {progressSummary && (
-        <div className="bg-gray-50 rounded-lg p-4">
-          <h3 className="text-lg font-semibold mb-3">Today's Progress</h3>
+        <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-gray-100">
+            Today's Progress
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {progressSummary.map(
               ({ key, current, goal, percentage, remaining, status }) => (
-                <div key={key} className="bg-white rounded-lg p-3 border">
+                <div
+                  key={key}
+                  className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700"
+                >
                   <div className="flex justify-between items-center mb-2">
-                    <span className="font-medium text-sm">
+                    <span className="font-medium text-sm text-gray-900 dark:text-gray-100">
                       {NUTRIENT_DISPLAY[key]}
                     </span>
                     <span
                       className={`text-xs px-2 py-1 rounded ${
                         status === 'complete'
-                          ? 'bg-green-100 text-green-800'
+                          ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
                           : status === 'close'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
+                          ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200'
+                          : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
                       }`}
                     >
                       {percentage}%
                     </span>
                   </div>
                   <div className="mb-2">
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                       <div
                         className={`h-2 rounded-full transition-all duration-300 ${
                           status === 'complete'
-                            ? 'bg-green-500'
+                            ? 'bg-green-500 dark:bg-green-400'
                             : status === 'close'
-                            ? 'bg-yellow-500'
-                            : 'bg-red-500'
+                            ? 'bg-yellow-500 dark:bg-yellow-400'
+                            : 'bg-red-500 dark:bg-red-400'
                         }`}
                         style={{ width: `${Math.min(100, percentage)}%` }}
                       />
                     </div>
                   </div>
-                  <div className="text-xs text-gray-600">
+                  <div className="text-xs text-gray-600 dark:text-gray-400">
                     {current.toFixed(1)} / {goal.toFixed(1)}{' '}
                     {NUTRIENT_UNITS[key]}
                     {remaining > 0 && (
-                      <div className="text-gray-500">
+                      <div className="text-gray-500 dark:text-gray-500">
                         {remaining.toFixed(1)} {NUTRIENT_UNITS[key]} remaining
                       </div>
                     )}

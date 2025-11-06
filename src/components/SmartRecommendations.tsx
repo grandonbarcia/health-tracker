@@ -58,7 +58,7 @@ export default function SmartRecommendations({
       {messages.length > 0 && (
         <div className="mb-4 space-y-1">
           {messages.map((message, index) => (
-            <p key={index} className="text-sm text-blue-800">
+            <p key={index} className="text-sm text-blue-800 dark:text-blue-200">
               {message}
             </p>
           ))}
@@ -68,7 +68,7 @@ export default function SmartRecommendations({
       {/* Food Recommendations */}
       {recommendations.length > 0 && (
         <div>
-          <p className="text-xs text-blue-700 mb-2 font-medium">
+          <p className="text-xs text-blue-700 dark:text-blue-300 mb-2 font-medium">
             Suggested foods to help reach your goals:
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -119,7 +119,7 @@ function RecommendationCard({
 
       {/* Primary Reason */}
       {recommendation.reasons.length > 0 && (
-        <div className="text-xs text-gray-600">
+        <div className="text-xs text-gray-600 dark:text-gray-400">
           {formatRecommendationReason(recommendation.reasons[0])}
         </div>
       )}

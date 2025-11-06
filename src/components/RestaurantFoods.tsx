@@ -53,13 +53,15 @@ export default function RestaurantFoods({
   const totalItems = Object.keys(RESTAURANT_FOODS).length;
 
   return (
-    <div className={`bg-orange-50 rounded-lg p-4 ${className}`}>
+    <div
+      className={`bg-orange-50 dark:bg-orange-950 rounded-lg p-4 ${className}`}
+    >
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-orange-600">🍔</span>
-        <h3 className="font-semibold text-orange-900 text-sm">
+        <span className="text-orange-600 dark:text-orange-400">🍔</span>
+        <h3 className="font-semibold text-orange-900 dark:text-orange-100 text-sm">
           Restaurant Foods
         </h3>
-        <span className="text-xs text-orange-700 bg-orange-100 px-2 py-1 rounded">
+        <span className="text-xs text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">
           {totalItems} items from top chains
         </span>
       </div>
@@ -67,7 +69,7 @@ export default function RestaurantFoods({
       {/* Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div>
-          <label className="block text-xs font-medium text-orange-800 mb-1">
+          <label className="block text-xs font-medium text-orange-800 dark:text-orange-300 mb-1">
             Restaurant
           </label>
           <select
@@ -109,7 +111,7 @@ export default function RestaurantFoods({
       {/* Food Items Grid */}
       <div className="max-h-64 overflow-y-auto">
         {filteredFoods.length === 0 ? (
-          <div className="text-center py-8 text-orange-700">
+          <div className="text-center py-8 text-orange-700 dark:text-orange-300">
             <p className="text-sm">No items found for the selected filters.</p>
           </div>
         ) : (
@@ -127,8 +129,8 @@ export default function RestaurantFoods({
       </div>
 
       {/* Summary */}
-      <div className="mt-3 pt-3 border-t border-orange-200">
-        <p className="text-xs text-orange-700">
+      <div className="mt-3 pt-3 border-t border-orange-200 dark:border-orange-800">
+        <p className="text-xs text-orange-700 dark:text-orange-300">
           Showing {filteredFoods.length} of {totalItems} restaurant items
           {selectedRestaurant !== 'all' && ` from ${selectedRestaurant}`}
           {selectedCategory !== 'all' && ` in ${selectedCategory}`}
@@ -170,12 +172,14 @@ function RestaurantFoodCard({
           }`}
         >
           <div>
-            <div className="font-medium text-gray-900 text-sm">{food.name}</div>
-            <div className="text-xs text-orange-600 font-medium">
+            <div className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+              {food.name}
+            </div>
+            <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">
               {food.restaurant} • {food.category}
             </div>
           </div>
-          <div className="text-xs text-gray-600 text-right">
+          <div className="text-xs text-gray-600 dark:text-gray-400 text-right">
             <div className="font-medium">{food.calories} cal</div>
             <div>{food.serving}</div>
           </div>
@@ -183,17 +187,17 @@ function RestaurantFoodCard({
 
         {/* Nutrition Summary */}
         <div className="flex flex-wrap gap-2 mb-2">
-          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+          <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 px-2 py-1 rounded">
             {food.protein}g protein
           </span>
-          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+          <span className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 px-2 py-1 rounded">
             {food.carbs}g carbs
           </span>
-          <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">
+          <span className="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-200 px-2 py-1 rounded">
             {food.fat}g fat
           </span>
           {food.fiber > 0 && (
-            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
+            <span className="text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 px-2 py-1 rounded">
               {food.fiber}g fiber
             </span>
           )}
@@ -201,7 +205,7 @@ function RestaurantFoodCard({
 
         {/* Description */}
         {food.description && (
-          <div className="text-xs text-gray-600 line-clamp-2">
+          <div className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
             {food.description}
           </div>
         )}

@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -62,6 +62,37 @@ export default function TrendsChart({
   userGoals,
   className = '',
 }: Props) {
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    // Check initial dark mode state
+    const checkDarkMode = () => {
+      if (typeof window !== 'undefined') {
+        const isDark =
+          document.documentElement.classList.contains('dark') ||
+          window.matchMedia('(prefers-color-scheme: dark)').matches;
+        setIsDarkMode(isDark);
+      }
+    };
+
+    checkDarkMode();
+
+    // Listen for dark mode changes
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const observer = new MutationObserver(checkDarkMode);
+
+    mediaQuery.addListener(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+
+    return () => {
+      mediaQuery.removeListener(checkDarkMode);
+      observer.disconnect();
+    };
+  }, []);
+
   // Format dates for display
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -184,6 +215,7 @@ export default function TrendsChart({
         labels: {
           usePointStyle: true,
           pointStyle: 'circle',
+          color: isDarkMode ? '#e5e7eb' : '#374151',
         },
       },
       title: {
@@ -192,6 +224,11 @@ export default function TrendsChart({
       tooltip: {
         mode: 'index',
         intersect: false,
+        backgroundColor: isDarkMode ? '#374151' : '#ffffff',
+        titleColor: isDarkMode ? '#e5e7eb' : '#374151',
+        bodyColor: isDarkMode ? '#e5e7eb' : '#374151',
+        borderColor: isDarkMode ? '#6b7280' : '#d1d5db',
+        borderWidth: 1,
         callbacks: {
           label: function (context: any) {
             const label = context.dataset.label || '';
@@ -215,9 +252,13 @@ export default function TrendsChart({
               title: {
                 display: true,
                 text: 'Date',
+                color: isDarkMode ? '#9ca3af' : '#6b7280',
               },
               grid: {
                 display: false,
+              },
+              ticks: {
+                color: isDarkMode ? '#9ca3af' : '#6b7280',
               },
             },
             y: {
@@ -232,10 +273,16 @@ export default function TrendsChart({
                     : nutrient === 'all'
                     ? 'Amount'
                     : 'Grams (g)',
+                color: isDarkMode ? '#9ca3af' : '#6b7280',
               },
               beginAtZero: true,
               grid: {
-                color: 'rgba(0, 0, 0, 0.1)',
+                color: isDarkMode
+                  ? 'rgba(107, 114, 128, 0.2)'
+                  : 'rgba(0, 0, 0, 0.1)',
+              },
+              ticks: {
+                color: isDarkMode ? '#9ca3af' : '#6b7280',
               },
             },
           }
@@ -246,9 +293,20 @@ export default function TrendsChart({
                 font: {
                   size: 12,
                 },
+                color: isDarkMode ? '#9ca3af' : '#6b7280',
               },
               ticks: {
                 display: false,
+              },
+              grid: {
+                color: isDarkMode
+                  ? 'rgba(107, 114, 128, 0.2)'
+                  : 'rgba(0, 0, 0, 0.1)',
+              },
+              angleLines: {
+                color: isDarkMode
+                  ? 'rgba(107, 114, 128, 0.2)'
+                  : 'rgba(0, 0, 0, 0.1)',
               },
             },
           },

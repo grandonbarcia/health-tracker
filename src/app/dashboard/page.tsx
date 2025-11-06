@@ -591,15 +591,15 @@ function Home() {
               <Collapsible
                 open={!analyticsCollapsed}
                 onOpenChange={(open) => setAnalyticsCollapsed(!open)}
-                className="border rounded-lg"
+                className="border border-border rounded-lg"
               >
-                <CollapsibleTrigger className="flex items-center justify-between w-full p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
-                  <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                <CollapsibleTrigger className="flex items-center justify-between w-full p-4 bg-muted hover:bg-muted/80 rounded-lg transition-colors">
+                  <h3 className="font-medium text-foreground flex items-center gap-2">
                     <span>📊</span>
                     Nutrition Analytics & Trends
                   </h3>
                   <ChevronDown
-                    className={`h-4 w-4 transition-transform ${
+                    className={`h-4 w-4 transition-transform text-muted-foreground ${
                       analyticsCollapsed ? 'rotate-180' : ''
                     }`}
                   />
@@ -619,7 +619,9 @@ function Home() {
           {/* Combined nutrients + Compare chart side-by-side */}
           <div className="grid md:grid-cols-2 gap-6">
             <section>
-              <h3 className="font-medium text-foreground">Combined nutrients</h3>
+              <h3 className="font-medium text-foreground">
+                Combined nutrients
+              </h3>
               {/* main Add Food input removed */}
               {/* favorites removed */}
               <div className="mt-3 overflow-auto max-h-[360px] border border-border rounded p-3 bg-card">
@@ -666,7 +668,9 @@ function Home() {
                     checked={percentMode}
                     onChange={(e) => setPercentMode(e.target.checked)}
                   />
-                  <span className="text-sm text-foreground">Show percent-of-RDI</span>
+                  <span className="text-sm text-foreground">
+                    Show percent-of-RDI
+                  </span>
                 </label>
               </div>
               <div className="border border-border rounded p-2 bg-card">
@@ -814,9 +818,11 @@ export function Calendar({
                   0
                   ? 'bg-green-50 dark:bg-green-950'
                   : 'bg-card hover:bg-muted/50'
-              } ${c.iso === todayIso ? 'ring-2 ring-yellow-400 dark:ring-yellow-500' : ''} ${
-                isLoading ? 'opacity-60' : ''
-              }`}
+              } ${
+                c.iso === todayIso
+                  ? 'ring-2 ring-yellow-400 dark:ring-yellow-500'
+                  : ''
+              } ${isLoading ? 'opacity-60' : ''}`}
             >
               {isLoading ? (
                 <div className="flex items-center justify-center h-full">
@@ -1227,8 +1233,8 @@ export function DayEditor({
             }
             className="mb-4"
           >
-            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border transition-colors">
-              <h3 className="font-medium text-gray-900">My Recipes</h3>
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-muted hover:bg-muted/80 rounded-lg border border-border transition-colors">
+              <h3 className="font-medium text-foreground">My Recipes</h3>
               <ChevronDown
                 className={`h-4 w-4 transition-transform ${
                   isCollapsed.recipes ? 'rotate-180' : ''
@@ -1249,7 +1255,7 @@ export function DayEditor({
           <select
             value={targetMeal}
             onChange={(e) => setTargetMeal(e.target.value as any)}
-            className="rounded border px-3 py-2"
+            className="rounded border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             aria-label="Select meal to add to"
           >
             <option value="breakfast">Breakfast</option>
@@ -1257,7 +1263,7 @@ export function DayEditor({
             <option value="dinner">Dinner</option>
           </select>
           <input
-            className="flex-1 rounded border px-3 py-2"
+            className="flex-1 rounded border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search food to add"
@@ -1360,14 +1366,18 @@ export function DayEditor({
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   ></path>
                 </svg>
-                <p className="text-sm text-muted-foreground">Loading foods...</p>
+                <p className="text-sm text-muted-foreground">
+                  Loading foods...
+                </p>
               </div>
             </div>
           ) : (
             <div className="grid gap-4">
               {(['breakfast', 'lunch', 'dinner'] as const).map((meal) => (
                 <div key={meal}>
-                  <h6 className="font-medium capitalize text-foreground">{meal}</h6>
+                  <h6 className="font-medium capitalize text-foreground">
+                    {meal}
+                  </h6>
                   <ul className="space-y-2 mt-2">
                     {(localItems[meal] ?? []).map((it, i) => (
                       <li

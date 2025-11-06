@@ -133,6 +133,23 @@ export const FOOD_DB: Record<string, NutrientProfile> = {
     vitaminD: 0,
     cholesterol: 0,
   },
+  'white rice': {
+    calories: 206,
+    protein: 4.3,
+    carbs: 45,
+    fat: 0.4,
+    fiber: 0.6,
+    sugar: 0.1,
+    sodium: 1,
+    calcium: 16,
+    iron: 1.9,
+    potassium: 55,
+    vitaminC: 0,
+    vitaminA: 0,
+    vitaminD: 0,
+    cholesterol: 0,
+    serving: '1 cup cooked',
+  },
   'mexican rice': {
     // approximate per 1 cup cooked (rice prepared with tomato, onion, oil)
     calories: 230,

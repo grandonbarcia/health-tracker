@@ -279,7 +279,7 @@ export default function LandingPage() {
           <Button
             asChild
             size="lg"
-            className="bg-white text-green-700 hover:bg-slate-100 dark:hover:bg-slate-200 text-lg px-8 py-6"
+            className="bg-white dark:bg-gray-800 text-green-700 dark:text-green-400 hover:bg-slate-100 dark:hover:bg-slate-700 text-lg px-8 py-6 border border-gray-200 dark:border-gray-600"
           >
             <Link href="/dashboard">Start Tracking Today</Link>
           </Button>

@@ -69,8 +69,10 @@ export default function FavoriteFoods({
 
   if (!currentUser) {
     return (
-      <div className={`bg-pink-50 rounded-lg p-4 ${className}`}>
-        <div className="text-center text-pink-700">
+      <div
+        className={`bg-pink-50 dark:bg-pink-950 rounded-lg p-4 ${className}`}
+      >
+        <div className="text-center text-pink-700 dark:text-pink-300">
           <p className="text-sm">Sign in to save favorite foods</p>
         </div>
       </div>
@@ -79,34 +81,42 @@ export default function FavoriteFoods({
 
   if (loading) {
     return (
-      <div className={`bg-pink-50 rounded-lg p-4 ${className}`}>
+      <div
+        className={`bg-pink-50 dark:bg-pink-950 rounded-lg p-4 ${className}`}
+      >
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-pink-600">❤️</span>
-          <h3 className="font-semibold text-pink-900 text-sm">
+          <span className="text-pink-600 dark:text-pink-400">❤️</span>
+          <h3 className="font-semibold text-pink-900 dark:text-pink-100 text-sm">
             Favorite Foods
           </h3>
         </div>
         <div className="flex items-center justify-center py-4">
-          <div className="text-sm text-pink-700">Loading favorites...</div>
+          <div className="text-sm text-pink-700 dark:text-pink-300">
+            Loading favorites...
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`bg-pink-50 rounded-lg p-4 ${className}`}>
+    <div className={`bg-pink-50 dark:bg-pink-950 rounded-lg p-4 ${className}`}>
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-pink-600">❤️</span>
-        <h3 className="font-semibold text-pink-900 text-sm">Favorite Foods</h3>
-        <span className="text-xs text-pink-700 bg-pink-100 px-2 py-1 rounded">
+        <span className="text-pink-600 dark:text-pink-400">❤️</span>
+        <h3 className="font-semibold text-pink-900 dark:text-pink-100 text-sm">
+          Favorite Foods
+        </h3>
+        <span className="text-xs text-pink-700 dark:text-pink-300 bg-pink-100 dark:bg-pink-900 px-2 py-1 rounded">
           {favorites.length} favorites
         </span>
       </div>
 
       {favorites.length === 0 ? (
         <div className="text-center py-4">
-          <p className="text-sm text-pink-700 mb-2">No favorite foods yet</p>
-          <p className="text-xs text-pink-600">
+          <p className="text-sm text-pink-700 dark:text-pink-300 mb-2">
+            No favorite foods yet
+          </p>
+          <p className="text-xs text-pink-600 dark:text-pink-400">
             Click the ❤️ icon on any food to add it to favorites
           </p>
         </div>
@@ -163,14 +173,16 @@ function FavoriteFoodCard({
           <span>{food.calories || 0} cal</span>
           {food.serving && <span>• {food.serving}</span>}
           {favorite.food_type === 'restaurant' && (
-            <span className="text-orange-600 font-medium">• Restaurant</span>
+            <span className="text-orange-600 dark:text-orange-400 font-medium">
+              • Restaurant
+            </span>
           )}
         </div>
       </button>
 
       <button
         onClick={onRemove}
-        className="text-pink-500 hover:text-pink-700 p-1"
+        className="text-pink-500 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 p-1"
         title="Remove from favorites"
       >
         <span className="text-sm">💔</span>

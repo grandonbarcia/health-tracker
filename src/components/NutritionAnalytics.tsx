@@ -123,11 +123,11 @@ export default function NutritionAnalytics({
   };
 
   const getStreakColor = (streak: number) => {
-    if (streak >= 30) return 'text-purple-600';
-    if (streak >= 14) return 'text-blue-600';
-    if (streak >= 7) return 'text-green-600';
-    if (streak >= 3) return 'text-yellow-600';
-    return 'text-gray-600';
+    if (streak >= 30) return 'text-purple-600 dark:text-purple-400';
+    if (streak >= 14) return 'text-blue-600 dark:text-blue-400';
+    if (streak >= 7) return 'text-green-600 dark:text-green-400';
+    if (streak >= 3) return 'text-yellow-600 dark:text-yellow-400';
+    return 'text-gray-600 dark:text-gray-400';
   };
 
   const getCompletionRate = () => {
@@ -143,8 +143,10 @@ export default function NutritionAnalytics({
 
   if (!currentUser) {
     return (
-      <div className={`bg-blue-50 rounded-lg p-4 ${className}`}>
-        <div className="text-center text-blue-700">
+      <div
+        className={`bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 ${className}`}
+      >
+        <div className="text-center text-blue-700 dark:text-blue-300">
           <p className="text-sm">
             Sign in to view nutrition trends and analytics
           </p>
@@ -155,29 +157,35 @@ export default function NutritionAnalytics({
 
   if (loading) {
     return (
-      <div className={`bg-blue-50 rounded-lg p-4 ${className}`}>
+      <div
+        className={`bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 ${className}`}
+      >
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-blue-600">📊</span>
-          <h3 className="font-semibold text-blue-900 text-sm">
+          <span className="text-blue-600 dark:text-blue-400">📊</span>
+          <h3 className="font-semibold text-blue-900 dark:text-blue-100 text-sm">
             Nutrition Analytics
           </h3>
         </div>
         <div className="flex items-center justify-center py-8">
-          <div className="text-sm text-blue-700">Loading analytics...</div>
+          <div className="text-sm text-blue-700 dark:text-blue-300">
+            Loading analytics...
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`bg-blue-50 rounded-lg p-4 ${className}`}>
+    <div
+      className={`bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 ${className}`}
+    >
       <div className="flex items-center gap-2 mb-4">
-        <span className="text-blue-600">📊</span>
-        <h3 className="font-semibold text-blue-900 text-sm">
+        <span className="text-blue-600 dark:text-blue-400">📊</span>
+        <h3 className="font-semibold text-blue-900 dark:text-blue-100 text-sm">
           Nutrition Analytics
         </h3>
         {summary && (
-          <span className="text-xs text-blue-700 bg-blue-100 px-2 py-1 rounded">
+          <span className="text-xs text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-800/50 px-2 py-1 rounded">
             {summary.activeDays}/{summary.totalDays} days logged
           </span>
         )}
@@ -186,13 +194,13 @@ export default function NutritionAnalytics({
       {/* Controls */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
         <div>
-          <label className="block text-xs font-medium text-blue-900 mb-1">
+          <label className="block text-xs font-medium text-blue-900 dark:text-blue-100 mb-1">
             Time Period
           </label>
           <select
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(parseInt(e.target.value))}
-            className="w-full text-sm border rounded px-2 py-1 bg-white"
+            className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
           >
             {periodOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -202,13 +210,13 @@ export default function NutritionAnalytics({
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-blue-900 mb-1">
+          <label className="block text-xs font-medium text-blue-900 dark:text-blue-100 mb-1">
             Nutrient
           </label>
           <select
             value={selectedNutrient}
             onChange={(e) => setSelectedNutrient(e.target.value as any)}
-            className="w-full text-sm border rounded px-2 py-1 bg-white"
+            className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
           >
             {nutrientOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -218,13 +226,13 @@ export default function NutritionAnalytics({
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-blue-900 mb-1">
+          <label className="block text-xs font-medium text-blue-900 dark:text-blue-100 mb-1">
             Chart Type
           </label>
           <select
             value={chartType}
             onChange={(e) => setChartType(e.target.value as any)}
-            className="w-full text-sm border rounded px-2 py-1 bg-white"
+            className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
           >
             {chartTypeOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -237,10 +245,10 @@ export default function NutritionAnalytics({
 
       {data.length === 0 ? (
         <div className="text-center py-8">
-          <p className="text-sm text-blue-700 mb-2">
+          <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">
             No nutrition data available
           </p>
-          <p className="text-xs text-blue-600">
+          <p className="text-xs text-blue-600 dark:text-blue-400">
             Start logging your meals to see analytics and trends
           </p>
         </div>
@@ -249,13 +257,15 @@ export default function NutritionAnalytics({
           {/* Summary Stats */}
           {summary && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              <div className="bg-white rounded p-3 text-center">
-                <div className="text-lg font-bold text-blue-600">
+              <div className="bg-white dark:bg-gray-800 rounded p-3 text-center border border-gray-200 dark:border-gray-700">
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
                   {getCompletionRate()}%
                 </div>
-                <div className="text-xs text-gray-600">Completion Rate</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">
+                  Completion Rate
+                </div>
               </div>
-              <div className="bg-white rounded p-3 text-center">
+              <div className="bg-white dark:bg-gray-800 rounded p-3 text-center border border-gray-200 dark:border-gray-700">
                 <div
                   className={`text-lg font-bold ${getStreakColor(
                     summary.currentStreak
@@ -263,25 +273,31 @@ export default function NutritionAnalytics({
                 >
                   {summary.currentStreak}
                 </div>
-                <div className="text-xs text-gray-600">Current Streak</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">
+                  Current Streak
+                </div>
               </div>
-              <div className="bg-white rounded p-3 text-center">
-                <div className="text-lg font-bold text-green-600">
+              <div className="bg-white dark:bg-gray-800 rounded p-3 text-center border border-gray-200 dark:border-gray-700">
+                <div className="text-lg font-bold text-green-600 dark:text-green-400">
                   {summary.longestStreak}
                 </div>
-                <div className="text-xs text-gray-600">Best Streak</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">
+                  Best Streak
+                </div>
               </div>
-              <div className="bg-white rounded p-3 text-center">
-                <div className="text-lg font-bold text-purple-600">
+              <div className="bg-white dark:bg-gray-800 rounded p-3 text-center border border-gray-200 dark:border-gray-700">
+                <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
                   {summary.averages.calories}
                 </div>
-                <div className="text-xs text-gray-600">Avg Calories</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">
+                  Avg Calories
+                </div>
               </div>
             </div>
           )}
 
           {/* Chart */}
-          <div className="bg-white rounded-lg p-4 mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-4 border border-gray-200 dark:border-gray-700">
             <TrendsChart
               data={data}
               chartType={chartType}
@@ -292,8 +308,8 @@ export default function NutritionAnalytics({
 
           {/* Detailed Stats */}
           {summary && (
-            <div className="bg-white rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-3">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+              <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">
                 Average Daily Intake
               </h4>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
@@ -311,21 +327,21 @@ export default function NutritionAnalytics({
                       key={nutrient}
                       className="flex justify-between items-center"
                     >
-                      <span className="capitalize text-gray-600">
+                      <span className="capitalize text-gray-600 dark:text-gray-400">
                         {nutrient}:
                       </span>
                       <div className="text-right">
-                        <span className="font-medium">
+                        <span className="font-medium text-gray-900 dark:text-gray-100">
                           {average} {unit}
                         </span>
                         {progress && (
                           <div
                             className={`text-xs ${
                               progress >= 90 && progress <= 110
-                                ? 'text-green-600'
+                                ? 'text-green-600 dark:text-green-400'
                                 : progress > 110
-                                ? 'text-red-600'
-                                : 'text-yellow-600'
+                                ? 'text-red-600 dark:text-red-400'
+                                : 'text-yellow-600 dark:text-yellow-400'
                             }`}
                           >
                             {progress}% of goal

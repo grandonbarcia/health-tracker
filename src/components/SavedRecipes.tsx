@@ -97,8 +97,10 @@ export default function SavedRecipes({
 
   if (!currentUser) {
     return (
-      <div className={`bg-purple-50 rounded-lg p-4 ${className}`}>
-        <div className="text-center text-purple-700">
+      <div
+        className={`bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 ${className}`}
+      >
+        <div className="text-center text-purple-700 dark:text-purple-300">
           <p className="text-sm">Sign in to save and manage recipes</p>
         </div>
       </div>
@@ -107,24 +109,34 @@ export default function SavedRecipes({
 
   if (loading) {
     return (
-      <div className={`bg-purple-50 rounded-lg p-4 ${className}`}>
+      <div
+        className={`bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 ${className}`}
+      >
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-purple-600">🍳</span>
-          <h3 className="font-semibold text-purple-900 text-sm">My Recipes</h3>
+          <span className="text-purple-600 dark:text-purple-400">🍳</span>
+          <h3 className="font-semibold text-purple-900 dark:text-purple-100 text-sm">
+            My Recipes
+          </h3>
         </div>
         <div className="flex items-center justify-center py-4">
-          <div className="text-sm text-purple-700">Loading recipes...</div>
+          <div className="text-sm text-purple-700 dark:text-purple-300">
+            Loading recipes...
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`bg-purple-50 rounded-lg p-4 ${className}`}>
+    <div
+      className={`bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 ${className}`}
+    >
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-purple-600">🍳</span>
-        <h3 className="font-semibold text-purple-900 text-sm">My Recipes</h3>
-        <span className="text-xs text-purple-700 bg-purple-100 px-2 py-1 rounded">
+        <span className="text-purple-600 dark:text-purple-400">🍳</span>
+        <h3 className="font-semibold text-purple-900 dark:text-purple-100 text-sm">
+          My Recipes
+        </h3>
+        <span className="text-xs text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-800/50 px-2 py-1 rounded">
           {recipes.length} recipe{recipes.length !== 1 ? 's' : ''}
         </span>
       </div>
@@ -137,21 +149,23 @@ export default function SavedRecipes({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search recipes..."
-            className="w-full text-sm border rounded px-2 py-1 bg-white"
+            className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
           />
         </div>
       )}
 
       {recipes.length === 0 ? (
         <div className="text-center py-4">
-          <p className="text-sm text-purple-700 mb-2">No recipes saved yet</p>
-          <p className="text-xs text-purple-600">
+          <p className="text-sm text-purple-700 dark:text-purple-300 mb-2">
+            No recipes saved yet
+          </p>
+          <p className="text-xs text-purple-600 dark:text-purple-400">
             Create your first recipe to get started
           </p>
         </div>
       ) : filteredRecipes.length === 0 ? (
         <div className="text-center py-4">
-          <p className="text-sm text-purple-700">
+          <p className="text-sm text-purple-700 dark:text-purple-300">
             No recipes match your search
           </p>
         </div>
@@ -189,15 +203,15 @@ function RecipeCard({
   const ingredientCount = recipe.recipe_ingredients?.length || 0;
 
   return (
-    <div className="bg-white rounded border border-purple-200 hover:border-purple-300 transition-all">
+    <div className="bg-white dark:bg-gray-800 rounded border border-purple-200 dark:border-purple-700 hover:border-purple-300 dark:hover:border-purple-600 transition-all">
       <div className="p-3">
         <div className="flex justify-between items-start mb-2">
           <button onClick={onSelect} className="flex-1 text-left">
-            <div className="font-medium text-gray-900 text-sm">
+            <div className="font-medium text-gray-900 dark:text-gray-100 text-sm">
               {recipe.name}
             </div>
             {recipe.description && (
-              <div className="text-xs text-gray-600 mt-1 line-clamp-2">
+              <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
                 {recipe.description}
               </div>
             )}
@@ -205,14 +219,14 @@ function RecipeCard({
           <div className="flex gap-1 ml-2">
             <button
               onClick={onEdit}
-              className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1"
+              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-xs px-2 py-1"
               title="Edit recipe"
             >
               Edit
             </button>
             <button
               onClick={onDelete}
-              className="text-red-600 hover:text-red-800 text-xs px-2 py-1"
+              className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-xs px-2 py-1"
               title="Delete recipe"
             >
               Delete
@@ -220,7 +234,7 @@ function RecipeCard({
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-gray-600">
+        <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
           <div className="flex items-center gap-3">
             <span>
               {Math.round(recipeWithNutrition.nutritionPerServing.calories)}{' '}
@@ -237,12 +251,15 @@ function RecipeCard({
 
         {/* Ingredient preview */}
         {recipe.recipe_ingredients && recipe.recipe_ingredients.length > 0 && (
-          <div className="mt-2 text-xs text-gray-500">
+          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             <div className="flex flex-wrap gap-1">
               {recipe.recipe_ingredients
                 .slice(0, 3)
                 .map((ingredient, index) => (
-                  <span key={index} className="bg-gray-100 px-2 py-1 rounded">
+                  <span
+                    key={index}
+                    className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1 rounded"
+                  >
                     {getFoodDisplayName(
                       ingredient.food_id,
                       ingredient.food_type
@@ -250,7 +267,7 @@ function RecipeCard({
                   </span>
                 ))}
               {recipe.recipe_ingredients.length > 3 && (
-                <span className="text-gray-400">
+                <span className="text-gray-400 dark:text-gray-500">
                   +{recipe.recipe_ingredients.length - 3} more
                 </span>
               )}
