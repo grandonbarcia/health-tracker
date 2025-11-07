@@ -107,6 +107,7 @@ function Home() {
 
   // Analytics section state
   const [analyticsCollapsed, setAnalyticsCollapsed] = useState(true);
+  const [analyticsRefreshTrigger, setAnalyticsRefreshTrigger] = useState(0);
 
   const [importModal, setImportModal] = useState<{
     isOpen: boolean;
@@ -364,6 +365,8 @@ function Home() {
       const created = await getOrCreateDayForUser(importModal.date);
       await persistDayItems(created.id, importModal.localData);
       setDayItems((s) => ({ ...s, [importModal.date]: importModal.localData }));
+      // Refresh analytics after successful import
+      setAnalyticsRefreshTrigger((prev) => prev + 1);
 
       // Clear localStorage after successful import for this date
       try {
@@ -531,6 +534,8 @@ function Home() {
                     try {
                       const created = await getOrCreateDayForUser(selectedDate);
                       await persistDayItems(created.id, itemsForDay);
+                      // Refresh analytics after successful save
+                      setAnalyticsRefreshTrigger((prev) => prev + 1);
                     } catch (e) {
                       console.error('Failed to save day to user account:', e);
 
@@ -609,6 +614,7 @@ function Home() {
                     <NutritionAnalytics
                       currentUser={currentUser}
                       userGoals={userGoals || undefined}
+                      refreshTrigger={analyticsRefreshTrigger}
                     />
                   </div>
                 </CollapsibleContent>

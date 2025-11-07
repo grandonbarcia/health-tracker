@@ -501,6 +501,162 @@ export const RESTAURANT_FOODS = {
     description:
       'Chocolate, vanilla, and strawberry ice cream blended together',
   },
+
+  // =============================================================================
+  // BURGER KING - Top Popular Items
+  // =============================================================================
+  'Burger King Whopper': {
+    id: 'burgerking_whopper',
+    name: 'Whopper',
+    restaurant: 'Burger King',
+    category: 'Burgers',
+    calories: 677,
+    protein: 28,
+    carbs: 49,
+    fat: 40,
+    fiber: 2,
+    sodium: 980,
+    serving: '1 sandwich',
+    description:
+      'Flame-grilled beef patty, sesame seed bun, tomatoes, lettuce, mayo, ketchup, pickles, onions',
+  },
+
+  'Burger King Whopper Jr.': {
+    id: 'burgerking_whopper_jr',
+    name: 'Whopper Jr.',
+    restaurant: 'Burger King',
+    category: 'Burgers',
+    calories: 310,
+    protein: 13,
+    carbs: 27,
+    fat: 18,
+    fiber: 1,
+    sodium: 390,
+    serving: '1 sandwich',
+    description: 'Smaller version of the classic Whopper',
+  },
+
+  'Burger King Bacon King': {
+    id: 'burgerking_bacon_king',
+    name: 'Bacon King',
+    restaurant: 'Burger King',
+    category: 'Burgers',
+    calories: 1150,
+    protein: 61,
+    carbs: 49,
+    fat: 79,
+    fiber: 2,
+    sodium: 2150,
+    serving: '1 sandwich',
+    description:
+      'Two quarter-pound beef patties, thick-cut smoked bacon, American cheese',
+  },
+
+  'Burger King Chicken Fries (9 piece)': {
+    id: 'burgerking_chicken_fries_9pc',
+    name: 'Chicken Fries (9 piece)',
+    restaurant: 'Burger King',
+    category: 'Chicken',
+    calories: 280,
+    protein: 13,
+    carbs: 20,
+    fat: 17,
+    fiber: 2,
+    sodium: 940,
+    serving: '9 pieces',
+    description: 'Chicken strips shaped like fries, crispy and seasoned',
+  },
+
+  'Burger King Original Chicken Sandwich': {
+    id: 'burgerking_original_chicken_sandwich',
+    name: 'Original Chicken Sandwich',
+    restaurant: 'Burger King',
+    category: 'Chicken',
+    calories: 660,
+    protein: 28,
+    carbs: 54,
+    fat: 37,
+    fiber: 3,
+    sodium: 1410,
+    serving: '1 sandwich',
+    description: 'Crispy white meat chicken breast, lettuce, mayo',
+  },
+
+  'Burger King Impossible Whopper': {
+    id: 'burgerking_impossible_whopper',
+    name: 'Impossible Whopper',
+    restaurant: 'Burger King',
+    category: 'Burgers',
+    calories: 630,
+    protein: 25,
+    carbs: 58,
+    fat: 34,
+    fiber: 4,
+    sodium: 1080,
+    serving: '1 sandwich',
+    description:
+      'Plant-based patty, tomatoes, lettuce, mayo, ketchup, pickles, onions',
+  },
+
+  'Burger King Chicken Nuggets (10 piece)': {
+    id: 'burgerking_chicken_nuggets_10pc',
+    name: 'Chicken Nuggets (10 piece)',
+    restaurant: 'Burger King',
+    category: 'Chicken',
+    calories: 470,
+    protein: 21,
+    carbs: 30,
+    fat: 29,
+    fiber: 2,
+    sodium: 900,
+    serving: '10 pieces',
+    description: 'Tender white meat chicken nuggets, lightly breaded',
+  },
+
+  'Burger King French Fries (Medium)': {
+    id: 'burgerking_french_fries_medium',
+    name: 'French Fries',
+    restaurant: 'Burger King',
+    category: 'Sides',
+    calories: 380,
+    protein: 4,
+    carbs: 49,
+    fat: 18,
+    fiber: 4,
+    sodium: 640,
+    serving: 'medium',
+    description: 'Classic salted french fries',
+  },
+
+  'Burger King Onion Rings (Medium)': {
+    id: 'burgerking_onion_rings_medium',
+    name: 'Onion Rings',
+    restaurant: 'Burger King',
+    category: 'Sides',
+    calories: 410,
+    protein: 6,
+    carbs: 53,
+    fat: 19,
+    fiber: 3,
+    sodium: 570,
+    serving: 'medium',
+    description: 'Crispy breaded onion rings',
+  },
+
+  'Burger King Oreo Shake (Medium)': {
+    id: 'burgerking_oreo_shake_medium',
+    name: 'Oreo Shake',
+    restaurant: 'Burger King',
+    category: 'Beverages',
+    calories: 610,
+    protein: 11,
+    carbs: 85,
+    fat: 24,
+    fiber: 1,
+    sodium: 380,
+    serving: 'medium (16 oz)',
+    description: 'Vanilla soft serve blended with Oreo cookie pieces',
+  },
 };
 
 // Restaurant categories for filtering
@@ -511,6 +667,7 @@ export const RESTAURANT_CATEGORIES = {
   'Pizza Hut': ['Pizza', 'Wings', 'Sides', 'Desserts'],
   'Taco Bell': ['Tacos', 'Burritos', 'Quesadillas', 'Nachos', 'Specialties'],
   'In-N-Out': ['Burgers', 'Sides', 'Beverages'],
+  'Burger King': ['Burgers', 'Chicken', 'Sides', 'Beverages'],
 };
 
 // Get all restaurants

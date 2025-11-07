@@ -36,16 +36,11 @@ export async function GET(request: NextRequest) {
     // Get user's food log data for the date range
     const { data: userDays, error } = await supabase
       .from('user_days')
-      .select(
-        `
-        date,
-        day_items
-      `
-      )
+      .select('id, day_date')
       .eq('user_id', user.id)
-      .gte('date', start.toISOString().split('T')[0])
-      .lte('date', endDate)
-      .order('date', { ascending: true });
+      .gte('day_date', start.toISOString().split('T')[0])
+      .lte('day_date', endDate)
+      .order('day_date', { ascending: true });
 
     if (error) {
       console.error('Error fetching nutrition trends:', error);
@@ -53,6 +48,46 @@ export async function GET(request: NextRequest) {
         { error: 'Failed to fetch nutrition trends' },
         { status: 500 }
       );
+    }
+
+    // Get all items for these days
+    const dayIds = userDays?.map((d: any) => d.id) || [];
+    let allItems: any[] = [];
+
+    if (dayIds.length > 0) {
+      const { data: itemsData, error: itemsError } = await supabase
+        .from('user_day_items')
+        .select('*')
+        .in('day_id', dayIds);
+
+      if (itemsError) {
+        console.error('Error fetching day items:', itemsError);
+      } else {
+        allItems = itemsData || [];
+      }
+    }
+
+    // Group items by day_id
+    const itemsByDayId: Record<string, any[]> = {};
+    for (const item of allItems) {
+      if (!itemsByDayId[item.day_id]) {
+        itemsByDayId[item.day_id] = [];
+      }
+      itemsByDayId[item.day_id].push(item);
+    }
+
+    // Create a map of day_date to meals
+    const mealsByDate: Record<string, any> = {};
+    for (const day of userDays || []) {
+      const items = itemsByDayId[day.id] || [];
+      const meals: any = { breakfast: [], lunch: [], dinner: [] };
+
+      for (const item of items) {
+        const meal = item.metadata?.meal || 'dinner';
+        meals[meal].push({ name: item.food_id, qty: item.qty });
+      }
+
+      mealsByDate[day.day_date] = meals;
     }
 
     // Process the data to calculate daily nutrition totals
@@ -70,15 +105,15 @@ export async function GET(request: NextRequest) {
     // Fill in all dates in the range (including days with no data)
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().split('T')[0];
-      const dayData = userDays?.find((day) => day.date === dateStr);
+      const dayMeals = mealsByDate[dateStr];
 
-      if (dayData && dayData.day_items) {
+      if (dayMeals) {
         // Calculate nutrition for this day
-        const dayTotals = combineDayMealsWithQty(dayData.day_items);
+        const dayTotals = combineDayMealsWithQty(dayMeals);
         const itemCount =
-          (dayData.day_items.breakfast?.length || 0) +
-          (dayData.day_items.lunch?.length || 0) +
-          (dayData.day_items.dinner?.length || 0);
+          (dayMeals.breakfast?.length || 0) +
+          (dayMeals.lunch?.length || 0) +
+          (dayMeals.dinner?.length || 0);
 
         dailyNutrition.push({
           date: dateStr,
