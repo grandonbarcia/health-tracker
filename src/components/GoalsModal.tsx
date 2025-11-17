@@ -19,7 +19,7 @@ interface Props {
   onSave: (settings: UserSettings) => void;
 }
 
-export default function SettingsModal({ isOpen, onClose, onSave }: Props) {
+export default function GoalsModal({ isOpen, onClose, onSave }: Props) {
   const [settings, setSettings] = useState<UserSettings>({
     daily_calories: 2000,
     daily_protein: 150,
@@ -116,7 +116,9 @@ export default function SettingsModal({ isOpen, onClose, onSave }: Props) {
   return (
     <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50">
       <div className="bg-card rounded-lg p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto border border-border">
-        <h2 className="text-xl font-bold mb-4 text-foreground">Nutrition Goals</h2>
+        <h2 className="text-xl font-bold mb-4 text-foreground">
+          Nutrition Goals
+        </h2>
 
         <div className="space-y-4">
           <div>
@@ -132,17 +134,17 @@ export default function SettingsModal({ isOpen, onClose, onSave }: Props) {
                   daily_calories: parseInt(e.target.value) || 0,
                 }))
               }
-              className="w-full border rounded px-3 py-2"
+              className="w-full border border-border rounded-lg px-3 py-2 bg-background text-foreground"
               min="800"
               max="5000"
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Based on macros: {calculateCaloriesFromMacros().toFixed(0)}{' '}
               calories
               <button
                 type="button"
                 onClick={updateCaloriesFromMacros}
-                className="ml-2 text-blue-600 hover:text-blue-800"
+                className="ml-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
               >
                 Auto-calculate
               </button>
@@ -151,7 +153,7 @@ export default function SettingsModal({ isOpen, onClose, onSave }: Props) {
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-medium mb-1 text-foreground">
                 Protein (g)
               </label>
               <input
@@ -163,13 +165,13 @@ export default function SettingsModal({ isOpen, onClose, onSave }: Props) {
                     daily_protein: parseInt(e.target.value) || 0,
                   }))
                 }
-                className="w-full border rounded px-3 py-2"
+                className="w-full border border-border rounded-lg px-3 py-2 bg-background text-foreground"
                 min="0"
                 max="500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-medium mb-1 text-foreground">
                 Carbs (g)
               </label>
               <input
@@ -181,13 +183,15 @@ export default function SettingsModal({ isOpen, onClose, onSave }: Props) {
                     daily_carbs: parseInt(e.target.value) || 0,
                   }))
                 }
-                className="w-full border rounded px-3 py-2"
+                className="w-full border border-border rounded-lg px-3 py-2 bg-background text-foreground"
                 min="0"
                 max="1000"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Fat (g)</label>
+              <label className="block text-sm font-medium mb-1 text-foreground">
+                Fat (g)
+              </label>
               <input
                 type="number"
                 value={settings.daily_fat}
@@ -197,7 +201,7 @@ export default function SettingsModal({ isOpen, onClose, onSave }: Props) {
                     daily_fat: parseInt(e.target.value) || 0,
                   }))
                 }
-                className="w-full border rounded px-3 py-2"
+                className="w-full border border-border rounded-lg px-3 py-2 bg-background text-foreground"
                 min="0"
                 max="300"
               />
@@ -206,7 +210,7 @@ export default function SettingsModal({ isOpen, onClose, onSave }: Props) {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-medium mb-1 text-foreground">
                 Fiber (g)
               </label>
               <input
@@ -218,13 +222,13 @@ export default function SettingsModal({ isOpen, onClose, onSave }: Props) {
                     daily_fiber: parseInt(e.target.value) || 0,
                   }))
                 }
-                className="w-full border rounded px-3 py-2"
+                className="w-full border border-border rounded-lg px-3 py-2 bg-background text-foreground"
                 min="0"
                 max="100"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-medium mb-1 text-foreground">
                 Sodium (mg)
               </label>
               <input
@@ -236,7 +240,7 @@ export default function SettingsModal({ isOpen, onClose, onSave }: Props) {
                     daily_sodium: parseInt(e.target.value) || 0,
                   }))
                 }
-                className="w-full border rounded px-3 py-2"
+                className="w-full border border-border rounded-lg px-3 py-2 bg-background text-foreground"
                 min="0"
                 max="10000"
               />
@@ -244,7 +248,7 @@ export default function SettingsModal({ isOpen, onClose, onSave }: Props) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label className="block text-sm font-medium mb-1 text-foreground">
               Weight Goal
             </label>
             <select
@@ -252,7 +256,7 @@ export default function SettingsModal({ isOpen, onClose, onSave }: Props) {
               onChange={(e) =>
                 setSettings((s) => ({ ...s, weight_goal: e.target.value }))
               }
-              className="w-full border rounded px-3 py-2"
+              className="w-full border border-border rounded-lg px-3 py-2 bg-background text-foreground"
             >
               <option value="lose">Lose Weight</option>
               <option value="maintain">Maintain Weight</option>
@@ -261,7 +265,7 @@ export default function SettingsModal({ isOpen, onClose, onSave }: Props) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label className="block text-sm font-medium mb-1 text-foreground">
               Activity Level
             </label>
             <select
@@ -269,7 +273,7 @@ export default function SettingsModal({ isOpen, onClose, onSave }: Props) {
               onChange={(e) =>
                 setSettings((s) => ({ ...s, activity_level: e.target.value }))
               }
-              className="w-full border rounded px-3 py-2"
+              className="w-full border border-border rounded-lg px-3 py-2 bg-background text-foreground"
             >
               <option value="sedentary">Sedentary (Little/no exercise)</option>
               <option value="light">Light Activity (1-3 days/week)</option>

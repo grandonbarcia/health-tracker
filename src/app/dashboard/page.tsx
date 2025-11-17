@@ -19,7 +19,7 @@ import {
 } from '../../lib/nutrients';
 import NutrientChart from '../../components/NutrientChart';
 import ImportModal from '../../components/ImportModal';
-import SettingsModal from '../../components/SettingsModal';
+import GoalsModal from '../../components/GoalsModal';
 import SmartRecommendations from '../../components/SmartRecommendations';
 import RestaurantFoods from '../../components/RestaurantFoods';
 import FavoriteFoods from '../../components/FavoriteFoods';
@@ -32,7 +32,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Activity } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   getDayMeals,
@@ -42,6 +42,11 @@ import {
 } from '../../lib/user';
 import { FavoritesProvider } from '../../contexts/FavoritesContext';
 import { Recipe, CreateRecipeData } from '../../types/recipe';
+import VitalSignsEntry from '../../components/VitalSignsEntry';
+import VitalSignsQuickView from '../../components/VitalSignsQuickView';
+import VitalSignsHistory from '../../components/VitalSignsHistory';
+import VitalSignsTrends from '../../components/VitalSignsTrends';
+import { VitalSigns } from '../../types/vitalSigns';
 
 function Home() {
   // Use ref to track if component is mounted to prevent hydration issues
@@ -109,6 +114,21 @@ function Home() {
   const [analyticsCollapsed, setAnalyticsCollapsed] = useState(true);
   const [analyticsRefreshTrigger, setAnalyticsRefreshTrigger] = useState(0);
 
+  // Vital Signs section state
+  const [vitalSignsCollapsed, setVitalSignsCollapsed] = useState(true);
+  const [showVitalSignsEntry, setShowVitalSignsEntry] = useState(false);
+  const [editingVitalSign, setEditingVitalSign] = useState<VitalSigns | null>(
+    null
+  );
+  const [vitalSignsRefreshTrigger, setVitalSignsRefreshTrigger] = useState(0);
+  const [latestVitalSigns, setLatestVitalSigns] = useState<
+    VitalSigns | undefined
+  >();
+  const [loadingLatestVitals, setLoadingLatestVitals] = useState(false);
+  const [vitalSignsTab, setVitalSignsTab] = useState<'history' | 'trends'>(
+    'history'
+  );
+
   const [importModal, setImportModal] = useState<{
     isOpen: boolean;
     date: string;
@@ -171,6 +191,33 @@ function Home() {
       console.error('Error loading user goals:', error);
     }
   }
+
+  // Load latest vital signs for today
+  async function loadLatestVitalSigns() {
+    if (!currentUser) return;
+
+    setLoadingLatestVitals(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const response = await fetch(`/api/vital-signs?date=${today}&limit=1`);
+
+      if (response.ok) {
+        const data = await response.json();
+        setLatestVitalSigns(data[0] || undefined);
+      }
+    } catch (error) {
+      console.error('Error loading latest vital signs:', error);
+    } finally {
+      setLoadingLatestVitals(false);
+    }
+  }
+
+  // Load latest vitals when user changes or section is opened
+  useEffect(() => {
+    if (currentUser && !vitalSignsCollapsed) {
+      loadLatestVitalSigns();
+    }
+  }, [currentUser, vitalSignsCollapsed]);
 
   // Track authentication state - RE-ENABLED for testing
   useEffect(() => {
@@ -480,6 +527,15 @@ function Home() {
                   >
                     ⚙️ Goals
                   </button>
+                  <button
+                    onClick={() => {
+                      setEditingVitalSign(null);
+                      setShowVitalSignsEntry(true);
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm flex items-center gap-2"
+                  >
+                    ❤️ Record Vital Signs
+                  </button>
                 </>
               )}
             </div>
@@ -622,6 +678,94 @@ function Home() {
             </div>
           )}
 
+          {/* Vital Signs Section */}
+          {currentUser && (
+            <div className="mb-6">
+              <Collapsible
+                open={!vitalSignsCollapsed}
+                onOpenChange={(open) => setVitalSignsCollapsed(!open)}
+                className="border border-border rounded-lg"
+              >
+                <CollapsibleTrigger className="flex items-center justify-between w-full p-4 bg-muted hover:bg-muted/80 rounded-lg transition-colors">
+                  <h3 className="font-medium text-foreground flex items-center gap-2">
+                    <Activity className="w-5 h-5" />
+                    Vital Signs Monitoring
+                  </h3>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform text-muted-foreground ${
+                      vitalSignsCollapsed ? 'rotate-180' : ''
+                    }`}
+                  />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="p-4 pt-0 space-y-6">
+                    {/* Quick View - Today's Latest Readings */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-sm text-muted-foreground">
+                          Today's Latest Readings
+                        </h4>
+                      </div>
+                      <VitalSignsQuickView
+                        latestReadings={latestVitalSigns}
+                        loading={loadingLatestVitals}
+                        tempUnit="celsius"
+                      />
+                    </div>
+
+                    {/* Tabs for History and Trends */}
+                    <div className="border-t border-border pt-4">
+                      <div className="flex gap-4 border-b border-border mb-4">
+                        <button
+                          onClick={() => setVitalSignsTab('history')}
+                          className={`pb-2 px-1 border-b-2 text-sm font-medium transition-colors ${
+                            vitalSignsTab === 'history'
+                              ? 'border-primary text-foreground'
+                              : 'border-transparent text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          History
+                        </button>
+                        <button
+                          onClick={() => setVitalSignsTab('trends')}
+                          className={`pb-2 px-1 border-b-2 text-sm font-medium transition-colors ${
+                            vitalSignsTab === 'trends'
+                              ? 'border-primary text-foreground'
+                              : 'border-transparent text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          Trends
+                        </button>
+                      </div>
+
+                      {/* History View */}
+                      {vitalSignsTab === 'history' && (
+                        <VitalSignsHistory
+                          currentUser={currentUser}
+                          onEdit={(record) => {
+                            setEditingVitalSign(record);
+                            setShowVitalSignsEntry(true);
+                          }}
+                          refreshTrigger={vitalSignsRefreshTrigger}
+                          tempUnit="celsius"
+                        />
+                      )}
+
+                      {/* Trends View */}
+                      {vitalSignsTab === 'trends' && (
+                        <VitalSignsTrends
+                          currentUser={currentUser}
+                          refreshTrigger={vitalSignsRefreshTrigger}
+                          tempUnit="celsius"
+                        />
+                      )}
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          )}
+
           {/* Combined nutrients + Compare chart side-by-side */}
           <div className="grid md:grid-cols-2 gap-6">
             <section>
@@ -702,7 +846,7 @@ function Home() {
         />
 
         {/* Settings Modal */}
-        <SettingsModal
+        <GoalsModal
           isOpen={showSettings}
           onClose={() => setShowSettings(false)}
           onSave={(settings) => {
@@ -726,6 +870,20 @@ function Home() {
           }}
           onSave={handleSaveRecipe}
           editingRecipe={editingRecipe}
+        />
+
+        {/* Vital Signs Entry Modal */}
+        <VitalSignsEntry
+          open={showVitalSignsEntry}
+          onOpenChange={setShowVitalSignsEntry}
+          currentUser={currentUser}
+          selectedDate={selectedDate || undefined}
+          editingRecord={editingVitalSign}
+          onSuccess={() => {
+            setVitalSignsRefreshTrigger((prev) => prev + 1);
+            loadLatestVitalSigns();
+            setEditingVitalSign(null);
+          }}
         />
       </div>
     </FavoritesProvider>
