@@ -47,6 +47,9 @@ import VitalSignsQuickView from '../../components/VitalSignsQuickView';
 import VitalSignsHistory from '../../components/VitalSignsHistory';
 import VitalSignsTrends from '../../components/VitalSignsTrends';
 import { VitalSigns } from '../../types/vitalSigns';
+import WorkoutEntry from '../../components/WorkoutEntry';
+import WorkoutHistory from '../../components/WorkoutHistory';
+import WorkoutStats from '../../components/WorkoutStats';
 
 function Home() {
   // Use ref to track if component is mounted to prevent hydration issues
@@ -128,6 +131,10 @@ function Home() {
   const [vitalSignsTab, setVitalSignsTab] = useState<'history' | 'trends'>(
     'history'
   );
+
+  // Workout section state
+  const [workoutCollapsed, setWorkoutCollapsed] = useState(true);
+  const [showWorkoutEntry, setShowWorkoutEntry] = useState(false);
 
   const [importModal, setImportModal] = useState<{
     isOpen: boolean;
@@ -766,6 +773,53 @@ function Home() {
             </div>
           )}
 
+          {/* Workout Tracking Section */}
+          {currentUser && (
+            <div className="mb-6">
+              <Collapsible
+                open={!workoutCollapsed}
+                onOpenChange={(open) => setWorkoutCollapsed(!open)}
+                className="border border-border rounded-lg"
+              >
+                <CollapsibleTrigger className="flex items-center justify-between w-full p-4 bg-gradient-to-r from-purple-50 to-green-50 dark:from-purple-950/30 dark:to-green-950/30 hover:from-purple-100 hover:to-green-100 dark:hover:from-purple-950/50 dark:hover:to-green-950/50 rounded-lg transition-colors">
+                  <h3 className="font-medium text-foreground flex items-center gap-2">
+                    <span className="text-purple-500">💪</span>
+                    Workout Tracking
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowWorkoutEntry(true);
+                      }}
+                      className="px-3 py-1 bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      Log Workout
+                    </button>
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform text-muted-foreground ${
+                        workoutCollapsed ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="p-4 pt-0 space-y-6">
+                    {/* Workout Stats */}
+                    <div>
+                      <WorkoutStats currentUser={currentUser} />
+                    </div>
+
+                    {/* Workout History */}
+                    <div>
+                      <WorkoutHistory currentUser={currentUser} />
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          )}
+
           {/* Combined nutrients + Compare chart side-by-side */}
           <div className="grid md:grid-cols-2 gap-6">
             <section>
@@ -883,6 +937,17 @@ function Home() {
             setVitalSignsRefreshTrigger((prev) => prev + 1);
             loadLatestVitalSigns();
             setEditingVitalSign(null);
+          }}
+        />
+
+        {/* Workout Entry Modal */}
+        <WorkoutEntry
+          open={showWorkoutEntry}
+          onOpenChange={setShowWorkoutEntry}
+          currentUser={currentUser}
+          selectedDate={selectedDate || undefined}
+          onSuccess={() => {
+            // No specific refresh needed as components fetch independently
           }}
         />
       </div>
