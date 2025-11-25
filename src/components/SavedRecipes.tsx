@@ -206,7 +206,7 @@ function RecipeCard({
     <div className="bg-white dark:bg-gray-800 rounded border border-purple-200 dark:border-purple-700 hover:border-purple-300 dark:hover:border-purple-600 transition-all">
       <div className="p-3">
         <div className="flex justify-between items-start mb-2">
-          <button onClick={onSelect} className="flex-1 text-left">
+          <div onClick={onSelect} className="flex-1 text-left cursor-pointer">
             <div className="font-medium text-gray-900 dark:text-gray-100 text-sm">
               {recipe.name}
             </div>
@@ -215,7 +215,7 @@ function RecipeCard({
                 {recipe.description}
               </div>
             )}
-          </button>
+          </div>
           <div className="flex gap-1 ml-2">
             <button
               onClick={onEdit}

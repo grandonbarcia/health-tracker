@@ -101,7 +101,10 @@ export default function NutritionAnalytics({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        console.warn('No session found for nutrition trends');
+        return;
+      }
 
       const response = await fetch(
         `/api/nutrition-trends?days=${selectedPeriod}`,
@@ -116,6 +119,13 @@ export default function NutritionAnalytics({
         const trendsData = await response.json();
         setData(trendsData.dailyNutrition || []);
         setSummary(trendsData.summary || null);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to load nutrition trends:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        });
       }
     } catch (error) {
       console.error('Error loading trends data:', error);

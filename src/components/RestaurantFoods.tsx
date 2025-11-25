@@ -153,7 +153,10 @@ function RestaurantFoodCard({
     <div className="relative p-3 bg-card rounded border border-orange-200 dark:border-orange-800 hover:border-orange-300 dark:hover:border-orange-700 hover:bg-muted/50 transition-all">
       {/* Favorite Button */}
       {currentUser && (
-        <div className="absolute top-2 right-2">
+        <div
+          className="absolute top-2 right-2 z-10"
+          onClick={(e) => e.stopPropagation()}
+        >
           <FavoriteButton
             foodId={food.id}
             foodType="restaurant"
@@ -164,7 +167,7 @@ function RestaurantFoodCard({
       )}
 
       {/* Main Content */}
-      <button onClick={onSelect} className="text-left w-full">
+      <div onClick={onSelect} className="text-left w-full cursor-pointer">
         {/* Header */}
         <div
           className={`flex items-start justify-between mb-2 ${
@@ -209,7 +212,7 @@ function RestaurantFoodCard({
             {food.description}
           </div>
         )}
-      </button>
+      </div>
     </div>
   );
 }

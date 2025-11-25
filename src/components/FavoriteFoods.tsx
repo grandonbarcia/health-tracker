@@ -165,7 +165,7 @@ function FavoriteFoodCard({
 
   return (
     <div className="flex items-center gap-2 p-2 bg-card rounded border border-pink-200 dark:border-pink-800 hover:border-pink-300 dark:hover:border-pink-700 transition-all">
-      <button onClick={onSelect} className="flex-1 text-left">
+      <div onClick={onSelect} className="flex-1 text-left cursor-pointer">
         <div className="font-medium text-foreground text-sm">
           {food.name || favorite.food_id}
         </div>
@@ -178,7 +178,7 @@ function FavoriteFoodCard({
             </span>
           )}
         </div>
-      </button>
+      </div>
 
       <button
         onClick={onRemove}
