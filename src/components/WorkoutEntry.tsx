@@ -10,6 +10,7 @@ import {
   SUGGESTED_WORKOUT_NAMES,
   getAllExerciseNames,
 } from '../lib/workoutUtils';
+import { supabase } from '../lib/supabaseClient';
 
 interface Props {
   open: boolean;
@@ -159,10 +160,13 @@ export default function WorkoutEntry({
       }
 
       // Get auth token
-      const token = currentUser?.session?.access_token;
-      if (!token) {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
         throw new Error('No authentication token');
       }
+      const token = session.access_token;
 
       // Submit to API
       const url = editingWorkout

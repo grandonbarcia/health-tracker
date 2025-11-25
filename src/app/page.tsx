@@ -54,7 +54,7 @@ export default function LandingPage() {
               size="lg"
               className="text-lg px-8 py-6 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
             >
-              <Link href="/dashboard">
+              <Link href="/auth">
                 <span className="flex items-center gap-2">
                   Start Your Journey
                   <Zap className="w-5 h-5" />
@@ -402,7 +402,7 @@ export default function LandingPage() {
                 size="lg"
                 className="bg-white dark:bg-gray-800 text-purple-700 dark:text-purple-400 hover:bg-gray-100 dark:hover:bg-gray-700 text-lg px-8 py-6 shadow-xl hover:scale-105 transition-all duration-300"
               >
-                <Link href="/dashboard">
+                <Link href="/auth">
                   <span className="flex items-center gap-2">
                     Start Free Today
                     <Zap className="w-5 h-5" />

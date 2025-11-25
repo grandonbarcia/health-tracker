@@ -632,8 +632,18 @@ function Home() {
                   }}
                   className="px-3 py-1.5 text-xs text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center gap-1"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  <svg
+                    className="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                    />
                   </svg>
                   Sign Out
                 </button>
@@ -910,15 +920,15 @@ function Home() {
                       Workout Tracking
                     </h3>
                     <div className="flex items-center gap-2">
-                      <button
+                      <span
                         onClick={(e) => {
                           e.stopPropagation();
                           setShowWorkoutEntry(true);
                         }}
-                        className="px-3 py-1 bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium rounded-lg transition-colors"
+                        className="px-3 py-1 bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer"
                       >
                         Log Workout
-                      </button>
+                      </span>
                       <ChevronDown
                         className={`h-4 w-4 transition-transform text-muted-foreground ${
                           workoutCollapsed ? 'rotate-180' : ''

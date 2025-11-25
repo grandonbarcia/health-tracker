@@ -13,6 +13,7 @@ import {
   WorkoutStats as WorkoutStatsType,
   WorkoutTrend,
 } from '../types/workouts';
+import { supabase } from '@/lib/supabaseClient';
 
 interface Props {
   currentUser: any;
@@ -34,8 +35,11 @@ export default function WorkoutStats({ currentUser }: Props) {
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const token = currentUser?.session?.access_token;
-      if (!token) return;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const token = session.access_token;
 
       // Calculate date range
       const params = new URLSearchParams();
@@ -291,11 +295,6 @@ export default function WorkoutStats({ currentUser }: Props) {
                           </div>
                           <div className="flex gap-4 text-sm text-muted-foreground">
                             <span>{exercise.count} times</span>
-                            {exercise.total_volume > 0 && (
-                              <span>
-                                {exercise.total_volume.toLocaleString()} lbs
-                              </span>
-                            )}
                           </div>
                         </div>
                       ))}

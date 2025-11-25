@@ -6,6 +6,7 @@ import WorkoutCard from './WorkoutCard';
 import WorkoutEntry from './WorkoutEntry';
 import { Workout } from '../types/workouts';
 import { getTodayDate } from '../lib/workoutUtils';
+import { supabase } from '@/lib/supabaseClient';
 
 interface Props {
   currentUser: any;
@@ -33,8 +34,11 @@ export default function WorkoutHistory({ currentUser }: Props) {
   const fetchWorkouts = async () => {
     try {
       setLoading(true);
-      const token = currentUser?.session?.access_token;
-      if (!token) return;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const token = session.access_token;
 
       // Build query params
       const params = new URLSearchParams();
@@ -63,8 +67,11 @@ export default function WorkoutHistory({ currentUser }: Props) {
     if (!confirm('Are you sure you want to delete this workout?')) return;
 
     try {
-      const token = currentUser?.session?.access_token;
-      if (!token) return;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const token = session.access_token;
 
       const response = await fetch(`/api/workouts/${workoutId}`, {
         method: 'DELETE',

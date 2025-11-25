@@ -128,11 +128,11 @@ export default function Navbar() {
                 </div>
               ) : (
                 <Button
+                  asChild
                   variant="default"
                   className="bg-green-600 hover:bg-green-700"
-                  onClick={() => setIsDialogOpen(true)}
                 >
-                  Sign In
+                  <Link href="/auth">Sign In</Link>
                 </Button>
               )}
             </div>
