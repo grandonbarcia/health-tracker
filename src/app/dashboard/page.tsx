@@ -40,9 +40,13 @@ function Home() {
     snacks: [],
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [weeklyCalories, setWeeklyCalories] = useState<number[]>([]);
+  const [weeklyHeartRates, setWeeklyHeartRates] = useState<number[]>([]);
 
   useEffect(() => {
     loadTodaysMeals();
+    loadWeeklyCalories();
+    loadWeeklyVitals();
   }, []);
 
   const loadTodaysMeals = async () => {
@@ -146,12 +150,117 @@ function Home() {
       setIsLoading(false);
     }
   };
+
+  const loadWeeklyCalories = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get last 7 days
+      const days = [];
+      const today = new Date();
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        days.push(date.toISOString().split('T')[0]);
+      }
+
+      // Get data for all 7 days
+      const { data: userDays } = await supabase
+        .from('user_days')
+        .select('*')
+        .eq('user_id', user.id)
+        .in('day_date', days);
+
+      const dayIds = userDays?.map((d: any) => d.id) || [];
+      if (dayIds.length === 0) {
+        setWeeklyCalories(new Array(7).fill(0));
+        return;
+      }
+
+      const { data: items } = await supabase
+        .from('user_day_items')
+        .select('*')
+        .in('day_id', dayIds);
+
+      const foodIds = [...new Set(items?.map((i: any) => i.food_id) || [])];
+      const { data: foods } = await supabase
+        .from('foods')
+        .select('*')
+        .in('id', foodIds);
+
+      // Calculate daily totals
+      const dailyCalories = days.map((day) => {
+        const dayRecord = userDays?.find((d: any) => d.day_date === day);
+        if (!dayRecord) return 0;
+
+        const dayItems =
+          items?.filter((i: any) => i.day_id === dayRecord.id) || [];
+
+        const total = dayItems.reduce((acc, item: any) => {
+          const food = foods?.find((f: any) => f.id === item.food_id);
+          if (food) {
+            const qty = parseFloat(item.qty) || 1;
+            acc += food.calories * qty;
+          }
+          return acc;
+        }, 0);
+
+        return Math.round(total);
+      });
+
+      setWeeklyCalories(dailyCalories);
+    } catch (error) {
+      console.error('Error loading weekly calories:', error);
+      setWeeklyCalories(new Array(7).fill(0));
+    }
+  };
+
+  const loadWeeklyVitals = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get last 7 days
+      const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - (6 - i));
+        return date.toISOString().split('T')[0];
+      });
+
+      // Query user_vitals for the last 7 days
+      const { data: vitalsData, error } = await supabase
+        .from('user_vitals')
+        .select('reading_date, heart_rate')
+        .eq('user_id', user.id)
+        .in('reading_date', last7Days)
+        .order('reading_date', { ascending: true });
+
+      if (error) throw error;
+
+      // Map to daily heart rates
+      const dailyHeartRates = last7Days.map((date) => {
+        const vitals = vitalsData?.find((v) => v.reading_date === date);
+        return vitals?.heart_rate || 0;
+      });
+
+      setWeeklyHeartRates(dailyHeartRates);
+    } catch (error) {
+      console.error('Error loading weekly vitals:', error);
+      setWeeklyHeartRates(new Array(7).fill(0));
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 via-purple-600 to-blue-600 dark:from-green-400 dark:via-purple-400 dark:to-blue-400 bg-clip-text text-transparent bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 via-purple-600 to-blue-600 dark:from-green-400 dark:via-purple-400 dark:to-blue-400 bg-clip-text text-transparent">
             Dashboard
           </h1>
         </div>
@@ -361,6 +470,41 @@ function Home() {
                     </div>
                   </div>
                 </div>
+
+                {/* 7-Day Calorie Trend */}
+                <div className="mt-6 pt-4 border-t border-border/50">
+                  <h3 className="text-sm text-muted-foreground mb-3">
+                    7-Day Calorie Trend
+                  </h3>
+                  <div className="h-24 flex items-end justify-between gap-2">
+                    {weeklyCalories.map((calories, i) => {
+                      const maxCalories = Math.max(...weeklyCalories, 2000);
+                      const height =
+                        calories > 0 ? (calories / maxCalories) * 100 : 5;
+                      return (
+                        <div
+                          key={i}
+                          className="flex-1 flex flex-col items-center gap-1"
+                        >
+                          <div
+                            className="w-full bg-gradient-to-t from-green-500 to-emerald-600 rounded-t-lg transition-all hover:opacity-80"
+                            style={{ height: `${height}%` }}
+                            title={
+                              calories > 0 ? `${calories} kcal` : 'No data'
+                            }
+                          ></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                    {weeklyCalories.map((cal, i) => (
+                      <span key={i} className={cal > 0 ? 'font-semibold' : ''}>
+                        {cal > 0 ? Math.round(cal) : '-'}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
             );
           })()}
@@ -435,62 +579,35 @@ function Home() {
               </div>
             </div>
 
-            {/* HRV Trend */}
+            {/* Heart Rate Trend */}
             <div>
               <div className="text-sm text-muted-foreground mb-3">
-                HRV Trend
+                Heart Rate Trend (7 Days)
               </div>
-              <div className="h-20 relative">
-                <svg
-                  className="w-full h-full"
-                  viewBox="0 0 100 40"
-                  preserveAspectRatio="none"
-                >
-                  <path
-                    d="M 0 30 Q 10 25, 20 28 T 40 22 T 60 25 T 80 18 L 100 15"
-                    stroke="url(#hrvGradient)"
-                    strokeWidth="2"
-                    fill="none"
-                    className="drop-shadow-sm"
-                  />
-                  <path
-                    d="M 0 30 Q 10 25, 20 28 T 40 22 T 60 25 T 80 18 L 100 15 L 100 40 L 0 40 Z"
-                    fill="url(#hrvFillGradient)"
-                    opacity="0.2"
-                  />
-                  <defs>
-                    <linearGradient
-                      id="hrvGradient"
-                      x1="0%"
-                      y1="0%"
-                      x2="100%"
-                      y2="0%"
+              <div className="h-24 flex items-end justify-between gap-2">
+                {weeklyHeartRates.map((hr, i) => {
+                  const maxHR = Math.max(...weeklyHeartRates, 100);
+                  const height = hr > 0 ? (hr / maxHR) * 100 : 5;
+                  return (
+                    <div
+                      key={i}
+                      className="flex-1 flex flex-col items-center gap-1"
                     >
-                      <stop offset="0%" stopColor="rgb(34, 197, 94)" />
-                      <stop offset="100%" stopColor="rgb(16, 185, 129)" />
-                    </linearGradient>
-                    <linearGradient
-                      id="hrvFillGradient"
-                      x1="0%"
-                      y1="0%"
-                      x2="0%"
-                      y2="100%"
-                    >
-                      <stop offset="0%" stopColor="rgb(34, 197, 94)" />
-                      <stop
-                        offset="100%"
-                        stopColor="rgb(34, 197, 94)"
-                        opacity="0"
-                      />
-                    </linearGradient>
-                  </defs>
-                </svg>
+                      <div
+                        className="w-full bg-gradient-to-t from-green-500 to-emerald-600 rounded-t-lg transition-all hover:opacity-80"
+                        style={{ height: `${height}%` }}
+                        title={hr > 0 ? `${hr} bpm` : 'No data'}
+                      ></div>
+                    </div>
+                  );
+                })}
               </div>
               <div className="flex justify-between text-xs text-muted-foreground mt-2">
-                <span>20</span>
-                <span>20</span>
-                <span>26</span>
-                <span className="text-green-500 font-semibold">80</span>
+                {weeklyHeartRates.map((hr, i) => (
+                  <span key={i} className={hr > 0 ? 'font-semibold' : ''}>
+                    {hr > 0 ? hr : '-'}
+                  </span>
+                ))}
               </div>
             </div>
           </div>

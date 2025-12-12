@@ -12,7 +12,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { Bar, Line } from 'react-chartjs-2';
+import { Bar, Line, Pie } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -20,6 +20,7 @@ import {
   BarElement,
   LineElement,
   PointElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend,
@@ -55,6 +56,7 @@ ChartJS.register(
   BarElement,
   LineElement,
   PointElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend
@@ -78,6 +80,9 @@ export default function DietPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
   const [weeklyData, setWeeklyData] = useState<{
     labels: string[];
     calories: number[];
@@ -92,9 +97,12 @@ export default function DietPage() {
     fat: [],
   });
 
-  // Load saved meals on mount
+  // Load saved meals on mount and when date changes
   useEffect(() => {
-    loadTodaysMeals();
+    loadMealsForDate(selectedDate);
+  }, [selectedDate]);
+
+  useEffect(() => {
     loadWeeklyData();
   }, []);
 
@@ -128,7 +136,7 @@ export default function DietPage() {
     return () => clearTimeout(debounce);
   }, [searchQuery]);
 
-  const loadTodaysMeals = async () => {
+  const loadMealsForDate = async (date: string) => {
     setIsLoading(true);
     try {
       // Get current user
@@ -141,15 +149,12 @@ export default function DietPage() {
         return;
       }
 
-      // Get today's date in YYYY-MM-DD format
-      const today = new Date().toISOString().split('T')[0];
-
-      // Get or create today's day record
+      // Get day record for selected date
       const { data: dayData, error: dayError } = await supabase
         .from('user_days')
         .select('*')
         .eq('user_id', user.id)
-        .eq('day_date', today)
+        .eq('day_date', date)
         .single();
 
       if (dayError && dayError.code !== 'PGRST116') {
@@ -157,7 +162,13 @@ export default function DietPage() {
       }
 
       if (!dayData) {
-        console.log('No meals for today yet');
+        console.log(`No meals for ${date} yet`);
+        setSavedMeals({
+          breakfast: [],
+          lunch: [],
+          dinner: [],
+          snacks: [],
+        });
         setIsLoading(false);
         return;
       }
@@ -171,6 +182,12 @@ export default function DietPage() {
       if (itemsError) throw itemsError;
 
       if (!items || items.length === 0) {
+        setSavedMeals({
+          breakfast: [],
+          lunch: [],
+          dinner: [],
+          snacks: [],
+        });
         setIsLoading(false);
         return;
       }
@@ -354,8 +371,6 @@ export default function DietPage() {
   };
 
   const handleSaveMeal = async () => {
-    if (mealItems.length === 0) return;
-
     setIsSaving(true);
     try {
       // Get current user
@@ -368,15 +383,12 @@ export default function DietPage() {
         return;
       }
 
-      // Get today's date
-      const today = new Date().toISOString().split('T')[0];
-
-      // Get or create today's day record
+      // Get or create day record for selected date
       let { data: dayData, error: dayError } = await supabase
         .from('user_days')
         .select('*')
         .eq('user_id', user.id)
-        .eq('day_date', today)
+        .eq('day_date', selectedDate)
         .single();
 
       if (dayError && dayError.code === 'PGRST116') {
@@ -385,7 +397,7 @@ export default function DietPage() {
           .from('user_days')
           .insert({
             user_id: user.id,
-            day_date: today,
+            day_date: selectedDate,
           })
           .select()
           .single();
@@ -398,27 +410,31 @@ export default function DietPage() {
 
       if (!dayData) throw new Error('Failed to get or create day');
 
-      // Delete existing items for this meal
+      // Delete existing items for this meal to prevent stale data
       const mealType = selectedMeal.toLowerCase();
-      await supabase
+      const { error: deleteError } = await supabase
         .from('user_day_items')
         .delete()
         .eq('day_id', dayData.id)
         .eq('metadata->>meal', mealType);
 
-      // Insert new meal items
-      const itemsToInsert = mealItems.map((item) => ({
-        day_id: dayData.id,
-        food_id: item.food.id,
-        qty: item.quantity,
-        metadata: { meal: mealType },
-      }));
+      if (deleteError) throw deleteError;
 
-      const { error: insertError } = await supabase
-        .from('user_day_items')
-        .insert(itemsToInsert);
+      // Insert new meal items only if there are items to insert
+      if (mealItems.length > 0) {
+        const itemsToInsert = mealItems.map((item) => ({
+          day_id: dayData.id,
+          food_id: item.food.id,
+          qty: item.quantity,
+          metadata: { meal: mealType },
+        }));
 
-      if (insertError) throw insertError;
+        const { error: insertError } = await supabase
+          .from('user_day_items')
+          .insert(itemsToInsert);
+
+        if (insertError) throw insertError;
+      }
 
       // Update saved meals state
       const mealKey = mealType as keyof SavedMeals;
@@ -440,20 +456,114 @@ export default function DietPage() {
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="p-2 hover:bg-muted/50 rounded-lg transition-all duration-300 hover:scale-110 hover:-translate-x-1"
-          >
-            <ArrowLeft className="w-7 h-7" strokeWidth={2.5} />
-          </button>
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 via-purple-600 to-blue-600 dark:from-green-400 dark:via-purple-400 dark:to-blue-400 bg-clip-text text-transparent">
-              Diet & Nutrition
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Track your meals and nutritional intake
-            </p>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="p-2 hover:bg-muted/50 rounded-lg transition-all duration-300 hover:scale-110 hover:-translate-x-1"
+            >
+              <ArrowLeft className="w-7 h-7" strokeWidth={2.5} />
+            </button>
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 via-purple-600 to-blue-600 dark:from-green-400 dark:via-purple-400 dark:to-blue-400 bg-clip-text text-transparent">
+                Diet & Nutrition
+              </h1>
+              <p className="text-muted-foreground mt-1">
+                Track your meals and nutritional intake
+              </p>
+            </div>
+          </div>
+
+          {/* Date Picker */}
+          <div className="flex flex-col items-end gap-2">
+            <label className="text-sm font-medium text-muted-foreground">
+              View Date
+            </label>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  const currentDate = new Date(selectedDate);
+                  currentDate.setDate(currentDate.getDate() - 1);
+                  setSelectedDate(currentDate.toISOString().split('T')[0]);
+                }}
+                className="p-2 hover:bg-muted/50 rounded-lg transition-all duration-300 hover:scale-110"
+                title="Previous day"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </button>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                max={new Date().toISOString().split('T')[0]}
+                className="px-4 py-2 bg-muted/20 border border-border/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500/50 transition-all cursor-pointer hover:bg-muted/30"
+              />
+              <button
+                onClick={() => {
+                  const currentDate = new Date(selectedDate);
+                  const today = new Date().toISOString().split('T')[0];
+                  currentDate.setDate(currentDate.getDate() + 1);
+                  const nextDay = currentDate.toISOString().split('T')[0];
+                  if (nextDay <= today) {
+                    setSelectedDate(nextDay);
+                  }
+                }}
+                disabled={
+                  selectedDate >= new Date().toISOString().split('T')[0]
+                }
+                className="p-2 hover:bg-muted/50 rounded-lg transition-all duration-300 hover:scale-110 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:scale-100"
+                title="Next day"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </button>
+              <button
+                onClick={() =>
+                  setSelectedDate(new Date().toISOString().split('T')[0])
+                }
+                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg font-medium text-sm shadow-lg transition-all duration-300 hover:scale-105"
+                title="Jump to today"
+              >
+                Today
+              </button>
+            </div>
+            {selectedDate !== new Date().toISOString().split('T')[0] && (
+              <span className="text-xs text-muted-foreground">
+                Viewing{' '}
+                {new Date(selectedDate + 'T00:00:00').toLocaleDateString(
+                  'en-US',
+                  {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  }
+                )}
+              </span>
+            )}
           </div>
         </div>
 
@@ -463,7 +573,11 @@ export default function DietPage() {
           <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-6 border border-border/50 shadow-lg">
             <div className="flex items-center gap-2 mb-4">
               <Apple className="w-5 h-5 text-green-500" />
-              <h2 className="text-xl font-semibold">Today's Meals</h2>
+              <h2 className="text-xl font-semibold">
+                {selectedDate === new Date().toISOString().split('T')[0]
+                  ? "Today's Meals"
+                  : 'Meals'}
+              </h2>
             </div>
             <div className="space-y-4">
               {['Breakfast', 'Lunch', 'Dinner', 'Snacks'].map((meal) => {
@@ -585,24 +699,21 @@ export default function DietPage() {
               };
 
               const chartData = {
-                labels: ['Calories', 'Protein (g)', 'Carbs (g)', 'Fat (g)'],
+                labels: ['Protein (g)', 'Carbs (g)', 'Fat (g)'],
                 datasets: [
                   {
                     label: 'Current',
                     data: [
-                      Math.round(totals.calories),
                       Math.round(totals.protein),
                       Math.round(totals.carbs),
                       Math.round(totals.fat),
                     ],
                     backgroundColor: [
-                      'rgba(34, 197, 94, 0.8)', // green - calories
                       'rgba(59, 130, 246, 0.8)', // blue - protein
                       'rgba(168, 85, 247, 0.8)', // purple - carbs
                       'rgba(251, 191, 36, 0.8)', // amber - fat
                     ],
                     borderColor: [
-                      'rgb(34, 197, 94)',
                       'rgb(59, 130, 246)',
                       'rgb(168, 85, 247)',
                       'rgb(251, 191, 36)',
@@ -611,12 +722,7 @@ export default function DietPage() {
                   },
                   {
                     label: 'Target',
-                    data: [
-                      targets.calories,
-                      targets.protein,
-                      targets.carbs,
-                      targets.fat,
-                    ],
+                    data: [targets.protein, targets.carbs, targets.fat],
                     backgroundColor: 'rgba(156, 163, 175, 0.3)',
                     borderColor: 'rgb(156, 163, 175)',
                     borderWidth: 2,
@@ -679,19 +785,81 @@ export default function DietPage() {
                 },
               };
 
+              const caloriePercentage = Math.min(
+                (totals.calories / targets.calories) * 100,
+                100
+              );
+              const isOverTarget = totals.calories > targets.calories;
+
               return (
-                <div className="h-64">
-                  <Bar data={chartData} options={chartOptions} />
+                <div className="space-y-6">
+                  {/* Calorie Progress Bar */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-muted-foreground uppercase">
+                        Calories
+                      </h3>
+                      <div className="text-sm">
+                        <span className="font-bold text-lg">
+                          {Math.round(totals.calories)}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {' '}
+                          / {targets.calories} cal
+                        </span>
+                      </div>
+                    </div>
+                    <div className="relative h-8 bg-muted/20 rounded-full overflow-hidden border border-border/50">
+                      <div
+                        className={`h-full transition-all duration-500 ${
+                          isOverTarget
+                            ? 'bg-gradient-to-r from-red-500 to-orange-500'
+                            : caloriePercentage >= 80
+                            ? 'bg-gradient-to-r from-amber-500 to-yellow-500'
+                            : 'bg-gradient-to-r from-green-500 to-emerald-500'
+                        }`}
+                        style={{
+                          width: `${Math.min(caloriePercentage, 100)}%`,
+                        }}
+                      >
+                        <div className="h-full flex items-center justify-end pr-3">
+                          {caloriePercentage >= 15 && (
+                            <span className="text-xs font-semibold text-white">
+                              {Math.round(caloriePercentage)}%
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>0 cal</span>
+                      <span>
+                        {isOverTarget
+                          ? `+${Math.round(
+                              totals.calories - targets.calories
+                            )} over`
+                          : `${Math.round(
+                              targets.calories - totals.calories
+                            )} remaining`}
+                      </span>
+                      <span>{targets.calories} cal</span>
+                    </div>
+                  </div>
+
+                  {/* Macros Bar Chart */}
+                  <div className="h-48">
+                    <Bar data={chartData} options={chartOptions} />
+                  </div>
                 </div>
               );
             })()}
           </div>
 
-          {/* Weekly Overview */}
+          {/* Calorie Trend */}
           <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-6 border border-border/50 shadow-lg lg:col-span-2">
             <div className="flex items-center gap-2 mb-4">
-              <Calendar className="w-5 h-5 text-blue-500" />
-              <h2 className="text-xl font-semibold">Weekly Overview</h2>
+              <TrendingUp className="w-5 h-5 text-green-500" />
+              <h2 className="text-xl font-semibold">Calorie Trend</h2>
               <span className="text-xs text-muted-foreground ml-auto">
                 Last 7 days
               </span>
@@ -705,12 +873,81 @@ export default function DietPage() {
                       label: 'Calories',
                       data: weeklyData.calories,
                       borderColor: 'rgb(34, 197, 94)',
-                      backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                      backgroundColor: 'rgba(34, 197, 94, 0.2)',
                       tension: 0.4,
                       fill: true,
-                      pointRadius: 4,
-                      pointHoverRadius: 6,
+                      pointRadius: 5,
+                      pointHoverRadius: 7,
+                      borderWidth: 3,
                     },
+                  ],
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      display: false,
+                    },
+                    tooltip: {
+                      backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                      titleColor: 'rgb(255, 255, 255)',
+                      bodyColor: 'rgb(255, 255, 255)',
+                      borderColor: 'rgb(34, 197, 94)',
+                      borderWidth: 1,
+                      callbacks: {
+                        label: function (context: any) {
+                          return `${context.parsed.y} cal`;
+                        },
+                      },
+                    },
+                  },
+                  scales: {
+                    x: {
+                      ticks: {
+                        color: 'rgb(156, 163, 175)',
+                        font: {
+                          size: 11,
+                        },
+                      },
+                      grid: {
+                        display: false,
+                      },
+                    },
+                    y: {
+                      ticks: {
+                        color: 'rgb(156, 163, 175)',
+                        font: {
+                          size: 11,
+                        },
+                        callback: function (value: any) {
+                          return value + ' cal';
+                        },
+                      },
+                      grid: {
+                        color: 'rgba(156, 163, 175, 0.1)',
+                      },
+                    },
+                  },
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Macros Weekly Overview */}
+          <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-6 border border-border/50 shadow-lg lg:col-span-2">
+            <div className="flex items-center gap-2 mb-4">
+              <Calendar className="w-5 h-5 text-blue-500" />
+              <h2 className="text-xl font-semibold">Macros Overview</h2>
+              <span className="text-xs text-muted-foreground ml-auto">
+                Last 7 days
+              </span>
+            </div>
+            <div className="h-64">
+              <Line
+                data={{
+                  labels: weeklyData.labels,
+                  datasets: [
                     {
                       label: 'Protein (g)',
                       data: weeklyData.protein,
@@ -970,7 +1207,7 @@ export default function DietPage() {
                   </button>
                   <button
                     onClick={handleSaveMeal}
-                    disabled={mealItems.length === 0 || isSaving}
+                    disabled={isSaving}
                     className="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg font-medium shadow-lg shadow-green-500/20 transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                   >
                     {isSaving ? 'Saving...' : `Save ${selectedMeal}`}

@@ -14,6 +14,7 @@ interface VitalReading {
   diastolic: number | null;
   sleep_hours: number | null;
   energy_level: number | null;
+  reading_time: string | null;
   created_at: string;
 }
 
@@ -29,10 +30,24 @@ export default function VitalsPage() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [vitalsData, setVitalsData] = useState<VitalReading | null>(null);
+  const [todaysReadings, setTodaysReadings] = useState<VitalReading[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [weeklyVitals, setWeeklyVitals] = useState<{
+    heartRates: number[];
+    systolic: number[];
+    diastolic: number[];
+    sleepHours: number[];
+  }>({
+    heartRates: [],
+    systolic: [],
+    diastolic: [],
+    sleepHours: [],
+  });
 
   useEffect(() => {
     loadTodaysVitals();
+    loadTodaysReadings();
+    loadWeeklyVitals();
   }, []);
 
   const loadTodaysVitals = async () => {
@@ -68,6 +83,91 @@ export default function VitalsPage() {
     }
   };
 
+  const loadTodaysReadings = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const today = new Date().toISOString().split('T')[0];
+
+      // Get all readings for today, ordered by time
+      const { data, error } = await supabase
+        .from('user_vitals')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('reading_date', today)
+        .order('reading_time', { ascending: true });
+
+      if (error) {
+        console.error("Error loading today's readings:", error);
+        return;
+      }
+
+      setTodaysReadings(data || []);
+    } catch (error) {
+      console.error("Error loading today's readings:", error);
+    }
+  };
+
+  const loadWeeklyVitals = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get last 7 days
+      const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - (6 - i));
+        return date.toISOString().split('T')[0];
+      });
+
+      // Query user_vitals for the last 7 days
+      const { data: vitalsData, error } = await supabase
+        .from('user_vitals')
+        .select('*')
+        .eq('user_id', user.id)
+        .in('reading_date', last7Days)
+        .order('reading_date', { ascending: true });
+
+      if (error) throw error;
+
+      // Map to daily values
+      const heartRates = last7Days.map((date) => {
+        const vitals = vitalsData?.find((v) => v.reading_date === date);
+        return vitals?.heart_rate || 0;
+      });
+
+      const systolic = last7Days.map((date) => {
+        const vitals = vitalsData?.find((v) => v.reading_date === date);
+        return vitals?.systolic || 0;
+      });
+
+      const diastolic = last7Days.map((date) => {
+        const vitals = vitalsData?.find((v) => v.reading_date === date);
+        return vitals?.diastolic || 0;
+      });
+
+      const sleepHours = last7Days.map((date) => {
+        const vitals = vitalsData?.find((v) => v.reading_date === date);
+        return vitals?.sleep_hours || 0;
+      });
+
+      setWeeklyVitals({ heartRates, systolic, diastolic, sleepHours });
+    } catch (error) {
+      console.error('Error loading weekly vitals:', error);
+      setWeeklyVitals({
+        heartRates: new Array(7).fill(0),
+        systolic: new Array(7).fill(0),
+        diastolic: new Array(7).fill(0),
+        sleepHours: new Array(7).fill(0),
+      });
+    }
+  };
+
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({
       ...prev,
@@ -88,11 +188,14 @@ export default function VitalsPage() {
         return;
       }
 
-      const today = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      const currentTime = now.toTimeString().split(' ')[0]; // HH:MM:SS format
 
       const vitalRecord = {
         user_id: user.id,
         reading_date: today,
+        reading_time: currentTime,
         heart_rate: formData.heartRate ? parseFloat(formData.heartRate) : null,
         systolic: formData.systolic ? parseFloat(formData.systolic) : null,
         diastolic: formData.diastolic ? parseFloat(formData.diastolic) : null,
@@ -104,9 +207,8 @@ export default function VitalsPage() {
           : null,
       };
 
-      const { error } = await supabase.from('user_vitals').upsert(vitalRecord, {
-        onConflict: 'user_id,reading_date',
-      });
+      // Insert new reading (allows multiple readings per day)
+      const { error } = await supabase.from('user_vitals').insert(vitalRecord);
 
       if (error) {
         console.error('Error saving vitals:', error);
@@ -116,6 +218,8 @@ export default function VitalsPage() {
 
       // Reload data
       await loadTodaysVitals();
+      await loadTodaysReadings();
+      await loadWeeklyVitals();
 
       setShowModal(false);
       setFormData({
@@ -285,28 +389,248 @@ export default function VitalsPage() {
           </div>
         </div>
 
+        {/* Today's Readings Timeline */}
+        {todaysReadings.length > 0 && (
+          <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-6 border border-border/50 shadow-lg">
+            <h2 className="text-xl font-semibold mb-6">
+              Today's Readings ({todaysReadings.length})
+            </h2>
+            <div className="space-y-6">
+              {/* Heart Rate Throughout Day */}
+              {todaysReadings.some((r) => r.heart_rate) && (
+                <div className="space-y-2">
+                  <div className="text-sm font-medium text-muted-foreground">
+                    Heart Rate (bpm)
+                  </div>
+                  <div className="h-24 flex items-end gap-2">
+                    {todaysReadings.map((reading, i) => {
+                      if (!reading.heart_rate) return null;
+                      const maxHR = Math.max(
+                        ...todaysReadings
+                          .filter((r) => r.heart_rate)
+                          .map((r) => r.heart_rate!),
+                        100
+                      );
+                      const height = (reading.heart_rate / maxHR) * 100;
+                      const time = reading.reading_time
+                        ? reading.reading_time.slice(0, 5)
+                        : new Date(reading.created_at).toLocaleTimeString(
+                            'en-US',
+                            {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true,
+                            }
+                          );
+                      return (
+                        <div
+                          key={reading.id}
+                          className="flex-1 flex flex-col items-center gap-1 min-w-[60px]"
+                        >
+                          <div
+                            className="w-full bg-gradient-to-t from-red-500 to-red-400 rounded-t-lg transition-all hover:opacity-80 relative group"
+                            style={{ height: `${height}%` }}
+                          >
+                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                              {reading.heart_rate} bpm
+                            </div>
+                          </div>
+                          <span className="text-xs text-muted-foreground mt-1">
+                            {time}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Blood Pressure Throughout Day */}
+              {todaysReadings.some((r) => r.systolic && r.diastolic) && (
+                <div className="space-y-2">
+                  <div className="text-sm font-medium text-muted-foreground">
+                    Blood Pressure (mmHg)
+                  </div>
+                  <div className="h-24 flex items-end gap-2">
+                    {todaysReadings.map((reading, i) => {
+                      if (!reading.systolic || !reading.diastolic) return null;
+                      const maxBP = Math.max(
+                        ...todaysReadings
+                          .filter((r) => r.systolic)
+                          .map((r) => r.systolic!),
+                        140
+                      );
+                      const height = (reading.systolic / maxBP) * 100;
+                      const time = reading.reading_time
+                        ? reading.reading_time.slice(0, 5)
+                        : new Date(reading.created_at).toLocaleTimeString(
+                            'en-US',
+                            {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true,
+                            }
+                          );
+                      return (
+                        <div
+                          key={reading.id}
+                          className="flex-1 flex flex-col items-center gap-1 min-w-[60px]"
+                        >
+                          <div
+                            className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t-lg transition-all hover:opacity-80 relative group"
+                            style={{ height: `${height}%` }}
+                          >
+                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                              {reading.systolic}/{reading.diastolic}
+                            </div>
+                          </div>
+                          <span className="text-xs text-muted-foreground mt-1">
+                            {time}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Energy Level Throughout Day */}
+              {todaysReadings.some((r) => r.energy_level) && (
+                <div className="space-y-2">
+                  <div className="text-sm font-medium text-muted-foreground">
+                    Energy Level
+                  </div>
+                  <div className="h-24 flex items-end gap-2">
+                    {todaysReadings.map((reading, i) => {
+                      if (!reading.energy_level) return null;
+                      const height = (reading.energy_level / 10) * 100;
+                      const time = reading.reading_time
+                        ? reading.reading_time.slice(0, 5)
+                        : new Date(reading.created_at).toLocaleTimeString(
+                            'en-US',
+                            {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true,
+                            }
+                          );
+                      return (
+                        <div
+                          key={reading.id}
+                          className="flex-1 flex flex-col items-center gap-1 min-w-[60px]"
+                        >
+                          <div
+                            className="w-full bg-gradient-to-t from-amber-500 to-amber-400 rounded-t-lg transition-all hover:opacity-80 relative group"
+                            style={{ height: `${height}%` }}
+                          >
+                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                              {reading.energy_level}/10
+                            </div>
+                          </div>
+                          <span className="text-xs text-muted-foreground mt-1">
+                            {time}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Trends Chart */}
         <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-6 border border-border/50 shadow-lg">
           <h2 className="text-xl font-semibold mb-6">7-Day Trends</h2>
           <div className="space-y-6">
-            {['Heart Rate', 'Blood Pressure', 'Sleep Hours'].map((metric) => (
-              <div key={metric} className="space-y-2">
-                <div className="text-sm font-medium text-muted-foreground">
-                  {metric}
-                </div>
-                <div className="h-16 flex items-end gap-2">
-                  {[...Array(7)].map((_, i) => (
+            {/* Heart Rate */}
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-muted-foreground">
+                Heart Rate (bpm)
+              </div>
+              <div className="h-16 flex items-end gap-2">
+                {weeklyVitals.heartRates.map((hr, i) => {
+                  const maxHR = Math.max(...weeklyVitals.heartRates, 100);
+                  const height = hr > 0 ? (hr / maxHR) * 100 : 5;
+                  return (
                     <div
                       key={i}
-                      className="flex-1 bg-gradient-to-t from-green-500/60 to-green-500/20 rounded-t-lg transition-all hover:from-green-500/80"
-                      style={{
-                        height: `${Math.random() * 60 + 40}%`,
-                      }}
+                      className="flex-1 bg-gradient-to-t from-red-500/60 to-red-500/20 rounded-t-lg transition-all hover:from-red-500/80"
+                      style={{ height: `${height}%` }}
+                      title={hr > 0 ? `${hr} bpm` : 'No data'}
                     />
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            ))}
+              <div className="flex justify-between text-xs text-muted-foreground">
+                {weeklyVitals.heartRates.map((hr, i) => (
+                  <span key={i} className={hr > 0 ? 'font-semibold' : ''}>
+                    {hr > 0 ? hr : '-'}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Blood Pressure (Systolic) */}
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-muted-foreground">
+                Blood Pressure - Systolic (mmHg)
+              </div>
+              <div className="h-16 flex items-end gap-2">
+                {weeklyVitals.systolic.map((sys, i) => {
+                  const maxSys = Math.max(...weeklyVitals.systolic, 140);
+                  const height = sys > 0 ? (sys / maxSys) * 100 : 5;
+                  return (
+                    <div
+                      key={i}
+                      className="flex-1 bg-gradient-to-t from-blue-500/60 to-blue-500/20 rounded-t-lg transition-all hover:from-blue-500/80"
+                      style={{ height: `${height}%` }}
+                      title={
+                        sys > 0
+                          ? `${sys}/${weeklyVitals.diastolic[i]} mmHg`
+                          : 'No data'
+                      }
+                    />
+                  );
+                })}
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                {weeklyVitals.systolic.map((sys, i) => (
+                  <span key={i} className={sys > 0 ? 'font-semibold' : ''}>
+                    {sys > 0 ? `${sys}/${weeklyVitals.diastolic[i]}` : '-'}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Sleep Hours */}
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-muted-foreground">
+                Sleep Hours
+              </div>
+              <div className="h-16 flex items-end gap-2">
+                {weeklyVitals.sleepHours.map((sleep, i) => {
+                  const maxSleep = Math.max(...weeklyVitals.sleepHours, 10);
+                  const height = sleep > 0 ? (sleep / maxSleep) * 100 : 5;
+                  return (
+                    <div
+                      key={i}
+                      className="flex-1 bg-gradient-to-t from-purple-500/60 to-purple-500/20 rounded-t-lg transition-all hover:from-purple-500/80"
+                      style={{ height: `${height}%` }}
+                      title={sleep > 0 ? `${sleep} hours` : 'No data'}
+                    />
+                  );
+                })}
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                {weeklyVitals.sleepHours.map((sleep, i) => (
+                  <span key={i} className={sleep > 0 ? 'font-semibold' : ''}>
+                    {sleep > 0 ? sleep.toFixed(1) : '-'}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
           <div className="flex justify-between text-xs text-muted-foreground mt-4">
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
