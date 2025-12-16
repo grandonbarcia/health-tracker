@@ -1,10 +1,322 @@
 'use client';
 
-import { Dumbbell, ArrowLeft, Flame, Trophy, Target } from 'lucide-react';
+import {
+  Dumbbell,
+  ArrowLeft,
+  Flame,
+  Trophy,
+  Target,
+  Plus,
+  X,
+  Trash2,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+
+interface Workout {
+  id: string;
+  workout_date: string;
+  workout_type: string;
+  duration_minutes: number;
+  calories_burned: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+interface Exercise {
+  id: string;
+  workout_id: string;
+  exercise_name: string;
+  sets: number | null;
+  reps: number | null;
+  weight: number | null;
+  duration_minutes: number | null;
+  distance: number | null;
+  exercise_order: number;
+}
 
 export default function ExercisePage() {
   const router = useRouter();
+  const [showModal, setShowModal] = useState(false);
+  const [workouts, setWorkouts] = useState<Workout[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [todayStats, setTodayStats] = useState({
+    duration: 0,
+    calories: 0,
+  });
+  const [weeklyWorkouts, setWeeklyWorkouts] = useState(0);
+  const [weeklyActivity, setWeeklyActivity] = useState<
+    Array<{ day: string; value: number; minutes: number }>
+  >([]);
+  const [expandedWorkout, setExpandedWorkout] = useState<string | null>(null);
+  const [workoutExercises, setWorkoutExercises] = useState<
+    Record<string, Exercise[]>
+  >({});
+
+  const [formData, setFormData] = useState({
+    workoutDate: new Date().toISOString().split('T')[0],
+    workoutType: 'Strength',
+    duration: '',
+    calories: '',
+    notes: '',
+  });
+
+  const [exercises, setExercises] = useState<
+    Array<{
+      name: string;
+      sets: string;
+      reps: string;
+      weight: string;
+    }>
+  >([]);
+
+  useEffect(() => {
+    loadWorkouts();
+    loadTodayStats();
+    loadWeeklyStats();
+  }, []);
+
+  const loadWorkouts = async () => {
+    try {
+      setIsLoading(true);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('user_workouts')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('workout_date', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      setWorkouts(data || []);
+    } catch (error) {
+      console.error('Error loading workouts:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadTodayStats = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const today = new Date().toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from('user_workouts')
+        .select('duration_minutes, calories_burned')
+        .eq('user_id', user.id)
+        .eq('workout_date', today);
+
+      if (error) throw error;
+
+      const totalDuration =
+        data?.reduce((sum, w) => sum + (w.duration_minutes || 0), 0) || 0;
+      const totalCalories =
+        data?.reduce((sum, w) => sum + (w.calories_burned || 0), 0) || 0;
+
+      setTodayStats({ duration: totalDuration, calories: totalCalories });
+    } catch (error) {
+      console.error('Error loading today stats:', error);
+    }
+  };
+
+  const loadWorkoutExercises = async (workoutId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_exercises')
+        .select('*')
+        .eq('workout_id', workoutId)
+        .order('exercise_order', { ascending: true });
+
+      if (error) throw error;
+
+      setWorkoutExercises((prev) => ({
+        ...prev,
+        [workoutId]: data || [],
+      }));
+    } catch (error) {
+      console.error('Error loading workout exercises:', error);
+    }
+  };
+
+  const loadWeeklyStats = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get date 7 days ago
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+      const startDate = sevenDaysAgo.toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from('user_workouts')
+        .select('workout_date, duration_minutes')
+        .eq('user_id', user.id)
+        .gte('workout_date', startDate)
+        .order('workout_date', { ascending: true });
+
+      if (error) throw error;
+
+      // Count unique workout days
+      const uniqueDays = new Set(data?.map((w) => w.workout_date)).size;
+      setWeeklyWorkouts(uniqueDays);
+
+      // Build activity chart data for last 7 days
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const activityData = [];
+
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        const dayName = dayNames[date.getDay()];
+
+        const dayWorkouts =
+          data?.filter((w) => w.workout_date === dateStr) || [];
+        const totalMinutes = dayWorkouts.reduce(
+          (sum, w) => sum + (w.duration_minutes || 0),
+          0
+        );
+
+        activityData.push({
+          day: dayName,
+          minutes: totalMinutes,
+          value: Math.min((totalMinutes / 60) * 100, 100), // Scale to 0-100
+        });
+      }
+
+      setWeeklyActivity(activityData);
+    } catch (error) {
+      console.error('Error loading weekly stats:', error);
+    }
+  };
+
+  const handleDeleteWorkout = async (workoutId: string) => {
+    if (!confirm('Are you sure you want to delete this workout?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('user_workouts')
+        .delete()
+        .eq('id', workoutId);
+
+      if (error) throw error;
+
+      // Reload all data
+      await loadWorkouts();
+      await loadTodayStats();
+      await loadWeeklyStats();
+    } catch (error) {
+      console.error('Error deleting workout:', error);
+      alert('Failed to delete workout. Please try again.');
+    }
+  };
+
+  const handleAddExercise = () => {
+    setExercises([...exercises, { name: '', sets: '', reps: '', weight: '' }]);
+  };
+
+  const handleRemoveExercise = (index: number) => {
+    setExercises(exercises.filter((_, i) => i !== index));
+  };
+
+  const handleExerciseChange = (
+    index: number,
+    field: string,
+    value: string
+  ) => {
+    const newExercises = [...exercises];
+    newExercises[index] = { ...newExercises[index], [field]: value };
+    setExercises(newExercises);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        alert('Please log in to save workouts');
+        return;
+      }
+
+      // Insert workout
+      const { data: workout, error: workoutError } = await supabase
+        .from('user_workouts')
+        .insert({
+          user_id: user.id,
+          workout_date: formData.workoutDate,
+          workout_type: formData.workoutType,
+          duration_minutes: parseInt(formData.duration),
+          calories_burned: formData.calories
+            ? parseInt(formData.calories)
+            : null,
+          notes: formData.notes || null,
+        })
+        .select()
+        .single();
+
+      if (workoutError) throw workoutError;
+
+      // Insert exercises if any
+      if (exercises.length > 0 && workout) {
+        const exerciseRecords = exercises
+          .filter((ex) => ex.name.trim())
+          .map((ex, index) => ({
+            workout_id: workout.id,
+            exercise_name: ex.name,
+            sets: ex.sets ? parseInt(ex.sets) : null,
+            reps: ex.reps ? parseInt(ex.reps) : null,
+            weight: ex.weight ? parseFloat(ex.weight) : null,
+            exercise_order: index + 1,
+          }));
+
+        if (exerciseRecords.length > 0) {
+          const { error: exerciseError } = await supabase
+            .from('user_exercises')
+            .insert(exerciseRecords);
+
+          if (exerciseError) throw exerciseError;
+        }
+      }
+
+      // Reset form
+      setFormData({
+        workoutDate: new Date().toISOString().split('T')[0],
+        workoutType: 'Strength',
+        duration: '',
+        calories: '',
+        notes: '',
+      });
+      setExercises([]);
+      setShowModal(false);
+
+      // Reload workouts and stats
+      await loadWorkouts();
+      await loadTodayStats();
+      await loadWeeklyStats();
+    } catch (error) {
+      console.error('Error saving workout:', error);
+      alert('Failed to save workout. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 p-6">
@@ -17,7 +329,7 @@ export default function ExercisePage() {
           >
             <ArrowLeft className="w-7 h-7" strokeWidth={2.5} />
           </button>
-          <div>
+          <div className="flex-1">
             <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 via-purple-600 to-blue-600 dark:from-green-400 dark:via-purple-400 dark:to-blue-400 bg-clip-text text-transparent">
               Exercise & Activity
             </h1>
@@ -25,6 +337,13 @@ export default function ExercisePage() {
               Track your workouts and daily activity
             </p>
           </div>
+          <button
+            onClick={() => setShowModal(true)}
+            className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Log Workout
+          </button>
         </div>
 
         {/* Stats Grid */}
@@ -48,8 +367,10 @@ export default function ExercisePage() {
                 Calories Burned
               </div>
             </div>
-            <div className="text-4xl font-bold">450</div>
-            <div className="text-xs text-green-500 mt-2">Active calories</div>
+            <div className="text-4xl font-bold">{todayStats.calories}</div>
+            <div className="text-xs text-muted-foreground mt-2">
+              Today's total
+            </div>
           </div>
 
           {/* Workout Time */}
@@ -58,8 +379,10 @@ export default function ExercisePage() {
               <Dumbbell className="w-4 h-4 text-purple-500" />
               <div className="text-sm text-muted-foreground">Workout Time</div>
             </div>
-            <div className="text-4xl font-bold">60</div>
-            <div className="text-xs text-muted-foreground mt-2">minutes</div>
+            <div className="text-4xl font-bold">{todayStats.duration}</div>
+            <div className="text-xs text-muted-foreground mt-2">
+              minutes today
+            </div>
           </div>
 
           {/* Weekly Goal */}
@@ -68,8 +391,14 @@ export default function ExercisePage() {
               <Trophy className="w-4 h-4 text-green-500" />
               <div className="text-sm text-muted-foreground">Weekly Goal</div>
             </div>
-            <div className="text-4xl font-bold">5/7</div>
-            <div className="text-xs text-green-500 mt-2">days completed</div>
+            <div className="text-4xl font-bold">{weeklyWorkouts}/7</div>
+            <div
+              className={`text-xs mt-2 ${
+                weeklyWorkouts >= 5 ? 'text-green-500' : 'text-muted-foreground'
+              }`}
+            >
+              {weeklyWorkouts >= 5 ? 'Goal reached!' : 'days this week'}
+            </div>
           </div>
         </div>
 
@@ -77,32 +406,36 @@ export default function ExercisePage() {
         <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-6 border border-border/50 shadow-lg">
           <h2 className="text-xl font-semibold mb-6">Weekly Activity</h2>
           <div className="h-64 flex items-end justify-between gap-3">
-            {[
-              { day: 'Mon', value: 85, color: 'from-green-500 to-emerald-600' },
-              { day: 'Tue', value: 65, color: 'from-amber-500 to-orange-500' },
-              { day: 'Wed', value: 95, color: 'from-green-500 to-emerald-600' },
-              { day: 'Thu', value: 75, color: 'from-cyan-500 to-blue-500' },
-              {
-                day: 'Fri',
-                value: 100,
-                color: 'from-green-500 to-emerald-600',
-              },
-              { day: 'Sat', value: 55, color: 'from-orange-500 to-red-500' },
-              { day: 'Sun', value: 45, color: 'from-gray-400 to-gray-500' },
-            ].map((data) => (
-              <div
-                key={data.day}
-                className="flex-1 flex flex-col items-center gap-2"
-              >
+            {weeklyActivity.map((data) => {
+              const getColor = (minutes: number) => {
+                if (minutes === 0) return 'from-gray-400 to-gray-500';
+                if (minutes >= 60) return 'from-green-500 to-emerald-600';
+                if (minutes >= 30) return 'from-cyan-500 to-blue-500';
+                return 'from-amber-500 to-orange-500';
+              };
+
+              return (
                 <div
-                  className={`w-full bg-gradient-to-t ${data.color} rounded-t-lg transition-all hover:opacity-80`}
-                  style={{ height: `${data.value}%` }}
-                />
-                <span className="text-xs text-muted-foreground">
-                  {data.day}
-                </span>
-              </div>
-            ))}
+                  key={data.day}
+                  className="flex-1 flex flex-col items-center gap-2 group relative"
+                >
+                  <div
+                    className={`w-full bg-gradient-to-t ${getColor(
+                      data.minutes
+                    )} rounded-t-lg transition-all hover:opacity-80`}
+                    style={{ height: `${data.value || 5}%` }}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {data.day}
+                  </span>
+                  {data.minutes > 0 && (
+                    <div className="absolute -top-8 bg-popover border border-border px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                      {data.minutes} min
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -111,51 +444,137 @@ export default function ExercisePage() {
           {/* Recent Workouts */}
           <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-6 border border-border/50 shadow-lg">
             <h2 className="text-xl font-semibold mb-4">Recent Workouts</h2>
-            <div className="space-y-3">
-              {[
-                {
-                  name: 'Morning Run',
-                  duration: '45 min',
-                  calories: '320 cal',
-                  time: 'Today, 7:00 AM',
-                },
-                {
-                  name: 'Strength Training',
-                  duration: '60 min',
-                  calories: '280 cal',
-                  time: 'Yesterday, 6:00 PM',
-                },
-                {
-                  name: 'Cycling',
-                  duration: '30 min',
-                  calories: '190 cal',
-                  time: '2 days ago',
-                },
-                {
-                  name: 'Yoga',
-                  duration: '45 min',
-                  calories: '150 cal',
-                  time: '3 days ago',
-                },
-              ].map((workout, i) => (
-                <div
-                  key={i}
-                  className="p-4 bg-muted/20 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="font-semibold">{workout.name}</div>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        {workout.duration} • {workout.calories}
+            {isLoading ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Loading...
+              </div>
+            ) : workouts.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p className="text-lg mb-2">No workouts logged yet</p>
+                <p className="text-sm">
+                  Click "Log Workout" to add your first workout
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {workouts.map((workout) => {
+                  const workoutDate = new Date(workout.workout_date);
+                  const today = new Date();
+                  const yesterday = new Date(today);
+                  yesterday.setDate(yesterday.getDate() - 1);
+
+                  let timeDisplay = '';
+                  if (workoutDate.toDateString() === today.toDateString()) {
+                    timeDisplay = 'Today';
+                  } else if (
+                    workoutDate.toDateString() === yesterday.toDateString()
+                  ) {
+                    timeDisplay = 'Yesterday';
+                  } else {
+                    timeDisplay = workoutDate.toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                    });
+                  }
+
+                  const isExpanded = expandedWorkout === workout.id;
+                  const exercises = workoutExercises[workout.id];
+
+                  return (
+                    <div
+                      key={workout.id}
+                      className="p-4 bg-muted/20 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="font-semibold">
+                            {workout.workout_type}
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-1">
+                            {workout.duration_minutes} min
+                            {workout.calories_burned &&
+                              ` • ${workout.calories_burned} cal`}
+                          </div>
+                          {workout.notes && (
+                            <div className="text-xs text-muted-foreground mt-1 italic">
+                              {workout.notes}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-xs text-muted-foreground">
+                            {timeDisplay}
+                          </div>
+                          <button
+                            onClick={() => handleDeleteWorkout(workout.id)}
+                            className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                            title="Delete workout"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
+                      <button
+                        onClick={() => {
+                          if (isExpanded) {
+                            setExpandedWorkout(null);
+                          } else {
+                            setExpandedWorkout(workout.id);
+                            if (!exercises) {
+                              loadWorkoutExercises(workout.id);
+                            }
+                          }
+                        }}
+                        className="mt-2 text-xs text-blue-500 hover:text-blue-400 transition-colors"
+                      >
+                        {isExpanded ? 'Hide exercises' : 'View exercises'}
+                      </button>
+                      {isExpanded && (
+                        <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
+                          {!exercises ? (
+                            <div className="text-xs text-muted-foreground">
+                              Loading...
+                            </div>
+                          ) : exercises.length === 0 ? (
+                            <div className="text-xs text-muted-foreground">
+                              No exercises logged
+                            </div>
+                          ) : (
+                            exercises.map((exercise, idx) => (
+                              <div
+                                key={exercise.id}
+                                className="text-sm p-2 bg-muted/10 rounded-lg"
+                              >
+                                <div className="font-medium">
+                                  {exercise.exercise_name}
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {exercise.sets && exercise.reps && (
+                                    <span>
+                                      {exercise.sets} sets × {exercise.reps}{' '}
+                                      reps
+                                    </span>
+                                  )}
+                                  {exercise.weight && (
+                                    <span> • {exercise.weight} lbs</span>
+                                  )}
+                                  {exercise.duration_minutes && (
+                                    <span>{exercise.duration_minutes} min</span>
+                                  )}
+                                  {exercise.distance && (
+                                    <span> • {exercise.distance} mi</span>
+                                  )}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {workout.time}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Goals & Achievements */}
@@ -216,6 +635,232 @@ export default function ExercisePage() {
           </div>
         </div>
       </div>
+
+      {/* Workout Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-card rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-border">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-card border-b border-border p-6 flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Log Workout</h2>
+              <button
+                onClick={() => setShowModal(false)}
+                className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              {/* Workout Date */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-muted-foreground uppercase">
+                  Workout Date
+                </label>
+                <input
+                  type="date"
+                  value={formData.workoutDate}
+                  onChange={(e) =>
+                    setFormData({ ...formData, workoutDate: e.target.value })
+                  }
+                  max={new Date().toISOString().split('T')[0]}
+                  className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/50 transition-all"
+                  required
+                />
+              </div>
+
+              {/* Workout Type */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-muted-foreground uppercase">
+                  Workout Type
+                </label>
+                <select
+                  value={formData.workoutType}
+                  onChange={(e) =>
+                    setFormData({ ...formData, workoutType: e.target.value })
+                  }
+                  className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/50 transition-all"
+                  required
+                >
+                  <option value="Strength">Strength Training</option>
+                  <option value="Cardio">Cardio</option>
+                  <option value="Yoga">Yoga</option>
+                  <option value="HIIT">HIIT</option>
+                  <option value="Sports">Sports</option>
+                  <option value="Flexibility">Flexibility</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              {/* Duration */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-muted-foreground uppercase">
+                  Duration (minutes)
+                </label>
+                <input
+                  type="number"
+                  value={formData.duration}
+                  onChange={(e) =>
+                    setFormData({ ...formData, duration: e.target.value })
+                  }
+                  placeholder="45"
+                  min="1"
+                  className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/50 transition-all"
+                  required
+                />
+              </div>
+
+              {/* Calories Burned */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-muted-foreground uppercase">
+                  Calories Burned (optional)
+                </label>
+                <input
+                  type="number"
+                  value={formData.calories}
+                  onChange={(e) =>
+                    setFormData({ ...formData, calories: e.target.value })
+                  }
+                  placeholder="300"
+                  min="0"
+                  className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/50 transition-all"
+                />
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-muted-foreground uppercase">
+                  Notes (optional)
+                </label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) =>
+                    setFormData({ ...formData, notes: e.target.value })
+                  }
+                  placeholder="Great workout! Felt strong today..."
+                  rows={3}
+                  className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/50 transition-all resize-none"
+                />
+              </div>
+
+              {/* Exercises Section */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-muted-foreground uppercase">
+                    Exercises (optional)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAddExercise}
+                    className="px-3 py-1 bg-green-500/10 text-green-500 rounded-lg text-sm font-medium hover:bg-green-500/20 transition-colors flex items-center gap-1"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Exercise
+                  </button>
+                </div>
+
+                {exercises.length > 0 && (
+                  <div className="space-y-3">
+                    {exercises.map((exercise, index) => (
+                      <div
+                        key={index}
+                        className="p-4 bg-muted/10 rounded-lg border border-border/50 space-y-3"
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={exercise.name}
+                            onChange={(e) =>
+                              handleExerciseChange(
+                                index,
+                                'name',
+                                e.target.value
+                              )
+                            }
+                            placeholder="Exercise name (e.g., Bench Press)"
+                            className="flex-1 px-3 py-2 bg-muted/20 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500/50 text-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveExercise(index)}
+                            className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <input
+                            type="number"
+                            value={exercise.sets}
+                            onChange={(e) =>
+                              handleExerciseChange(
+                                index,
+                                'sets',
+                                e.target.value
+                              )
+                            }
+                            placeholder="Sets"
+                            min="0"
+                            className="px-3 py-2 bg-muted/20 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500/50 text-sm"
+                          />
+                          <input
+                            type="number"
+                            value={exercise.reps}
+                            onChange={(e) =>
+                              handleExerciseChange(
+                                index,
+                                'reps',
+                                e.target.value
+                              )
+                            }
+                            placeholder="Reps"
+                            min="0"
+                            className="px-3 py-2 bg-muted/20 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500/50 text-sm"
+                          />
+                          <input
+                            type="number"
+                            value={exercise.weight}
+                            onChange={(e) =>
+                              handleExerciseChange(
+                                index,
+                                'weight',
+                                e.target.value
+                              )
+                            }
+                            placeholder="Weight (lbs)"
+                            min="0"
+                            step="0.5"
+                            className="px-3 py-2 bg-muted/20 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500/50 text-sm"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Submit Button */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 px-6 py-3 bg-muted/20 text-muted-foreground rounded-xl font-semibold hover:bg-muted/30 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? 'Saving...' : 'Save Workout'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
