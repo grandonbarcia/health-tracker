@@ -13,6 +13,29 @@ import {
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+} from 'chart.js';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
 
 interface Workout {
   id: string;
@@ -47,10 +70,37 @@ export default function ExercisePage() {
     calories: 0,
   });
   const [weeklyWorkouts, setWeeklyWorkouts] = useState(0);
+
+  // Initialize with 7 days of empty data to ensure chart always renders
+  const getInitialWeeklyActivity = () => {
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const activities = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dayName = dayNames[date.getDay()];
+      activities.push({
+        day: dayName,
+        minutes: 0,
+        value: 5, // Minimum height for visibility
+      });
+    }
+    return activities;
+  };
+
   const [weeklyActivity, setWeeklyActivity] = useState<
     Array<{ day: string; value: number; minutes: number }>
-  >([]);
+  >(getInitialWeeklyActivity());
   const [expandedWorkout, setExpandedWorkout] = useState<string | null>(null);
+  const [showStepsModal, setShowStepsModal] = useState(false);
+  const [stepsFormData, setStepsFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    steps: '',
+  });
+  const [weeklySteps, setWeeklySteps] = useState<
+    Array<{ day: string; steps: number }>
+  >([]);
+  const [todaySteps, setTodaySteps] = useState(0);
   const [workoutExercises, setWorkoutExercises] = useState<
     Record<string, Exercise[]>
   >({});
@@ -76,6 +126,7 @@ export default function ExercisePage() {
     loadWorkouts();
     loadTodayStats();
     loadWeeklyStats();
+    loadWeeklySteps();
   }, []);
 
   const loadWorkouts = async () => {
@@ -153,53 +204,214 @@ export default function ExercisePage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.log('No user found, cannot load weekly stats');
+        // Set empty activity data when no user
+        setWeeklyActivity(getInitialWeeklyActivity());
+        setWeeklyWorkouts(0);
+        return;
+      }
 
-      // Get date 7 days ago
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+      // Get date 7 days ago (last 7 days including today)
+      const today = new Date();
+      const sevenDaysAgo = new Date(today);
+      sevenDaysAgo.setDate(today.getDate() - 6);
       const startDate = sevenDaysAgo.toISOString().split('T')[0];
 
-      const { data, error } = await supabase
+      console.log(
+        `Fetching workouts from ${startDate} to today from Supabase...`
+      );
+
+      // Fetch workout data from Supabase database
+      const { data: workoutData, error } = await supabase
         .from('user_workouts')
         .select('workout_date, duration_minutes')
         .eq('user_id', user.id)
         .gte('workout_date', startDate)
         .order('workout_date', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error loading workouts:', error);
+        throw error;
+      }
 
-      // Count unique workout days
-      const uniqueDays = new Set(data?.map((w) => w.workout_date)).size;
+      console.log(
+        '✅ Loaded workout data from Supabase database:',
+        workoutData
+      );
+      console.log(
+        `Found ${workoutData?.length || 0} workout records in last 7 days`
+      );
+
+      // Count unique workout days from database
+      const uniqueDays = new Set(workoutData?.map((w) => w.workout_date) || [])
+        .size;
       setWeeklyWorkouts(uniqueDays);
 
-      // Build activity chart data for last 7 days
+      // Build activity chart data for last 7 days based on database records
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const activityData = [];
 
       for (let i = 6; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
         const dateStr = date.toISOString().split('T')[0];
         const dayName = dayNames[date.getDay()];
 
+        // Filter workouts from database for this specific day
         const dayWorkouts =
-          data?.filter((w) => w.workout_date === dateStr) || [];
+          workoutData?.filter((w) => w.workout_date === dateStr) || [];
+
+        // Sum total minutes from database records for this day
         const totalMinutes = dayWorkouts.reduce(
-          (sum, w) => sum + (w.duration_minutes || 0),
+          (sum, w) => sum + (Number(w.duration_minutes) || 0),
           0
         );
 
         activityData.push({
           day: dayName,
           minutes: totalMinutes,
-          value: Math.min((totalMinutes / 60) * 100, 100), // Scale to 0-100
+          value:
+            totalMinutes > 0
+              ? Math.max(Math.min((totalMinutes / 60) * 100, 100), 10)
+              : 5, // Min 5% for empty, 10% for data
+        });
+
+        if (totalMinutes > 0) {
+          console.log(`  ${dayName} (${dateStr}): ${totalMinutes} minutes`);
+        }
+      }
+
+      console.log('📊 Weekly activity chart data:', activityData);
+      setWeeklyActivity(activityData);
+    } catch (error) {
+      console.error('❌ Error loading weekly stats from database:', error);
+      // Keep initial structure on error
+      setWeeklyActivity(getInitialWeeklyActivity());
+      setWeeklyWorkouts(0);
+    }
+  };
+
+  const loadWeeklySteps = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setWeeklySteps([]);
+        setTodaySteps(0);
+        return;
+      }
+
+      const today = new Date();
+      const sevenDaysAgo = new Date(today);
+      sevenDaysAgo.setDate(today.getDate() - 6);
+      const startDate = sevenDaysAgo.toISOString().split('T')[0];
+
+      // Fetch steps data from Supabase
+      const { data: stepsData, error } = await supabase
+        .from('user_steps')
+        .select('step_date, step_count')
+        .eq('user_id', user.id)
+        .gte('step_date', startDate)
+        .order('step_date', { ascending: true });
+
+      if (error) {
+        console.error('Error loading steps from database:', error);
+        console.log(
+          'Note: If the table does not exist, run the SQL script: scripts/create-steps-table.sql'
+        );
+        // Set empty data instead of returning early
+        setWeeklySteps([]);
+        setTodaySteps(0);
+        return;
+      }
+
+      console.log('✅ Loaded steps data from database:', stepsData);
+
+      // Build weekly steps data
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const stepsArray = [];
+
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        const dayName = dayNames[date.getDay()];
+
+        const daySteps = stepsData?.find((s) => s.step_date === dateStr);
+        const stepCount = daySteps?.step_count || 0;
+
+        stepsArray.push({
+          day: dayName,
+          steps: stepCount,
         });
       }
 
-      setWeeklyActivity(activityData);
+      setWeeklySteps(stepsArray);
+
+      // Get today's steps
+      const todayStr = today.toISOString().split('T')[0];
+      const todayData = stepsData?.find((s) => s.step_date === todayStr);
+      setTodaySteps(todayData?.step_count || 0);
     } catch (error) {
-      console.error('Error loading weekly stats:', error);
+      console.error('Error loading weekly steps:', error);
+    }
+  };
+
+  const handleSaveSteps = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        alert('Please log in to save steps');
+        return;
+      }
+
+      const stepCount = parseInt(stepsFormData.steps);
+
+      // Check if entry exists for this date
+      const { data: existing } = await supabase
+        .from('user_steps')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('step_date', stepsFormData.date)
+        .single();
+
+      if (existing) {
+        // Update existing entry
+        const { error } = await supabase
+          .from('user_steps')
+          .update({ step_count: stepCount })
+          .eq('id', existing.id);
+
+        if (error) throw error;
+      } else {
+        // Insert new entry
+        const { error } = await supabase.from('user_steps').insert({
+          user_id: user.id,
+          step_date: stepsFormData.date,
+          step_count: stepCount,
+        });
+
+        if (error) throw error;
+      }
+
+      // Reset form and close modal
+      setStepsFormData({
+        date: new Date().toISOString().split('T')[0],
+        steps: '',
+      });
+      setShowStepsModal(false);
+
+      // Reload steps data
+      await loadWeeklySteps();
+    } catch (error) {
+      console.error('Error saving steps:', error);
+      alert('Failed to save steps. Please try again.');
     }
   };
 
@@ -337,26 +549,42 @@ export default function ExercisePage() {
               Track your workouts and daily activity
             </p>
           </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            Log Workout
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowStepsModal(true)}
+              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Log Steps
+            </button>
+            <button
+              onClick={() => setShowModal(true)}
+              className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105 flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Log Workout
+            </button>
+          </div>
         </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {/* Steps */}
-          <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-sm rounded-2xl p-6 border border-blue-500/20 shadow-lg">
+          <div
+            onClick={() => setShowStepsModal(true)}
+            className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-sm rounded-2xl p-6 border border-blue-500/20 shadow-lg cursor-pointer hover:scale-105 transition-transform"
+          >
             <div className="text-sm text-muted-foreground mb-2">
               Today's Steps
             </div>
             <div className="text-4xl font-bold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">
-              10,245
+              {todaySteps.toLocaleString()}
             </div>
-            <div className="text-xs text-green-500 mt-2">102% of goal</div>
+            <div className="text-xs text-muted-foreground mt-2">
+              {todaySteps >= 10000
+                ? '✅ Goal reached!'
+                : `${10000 - todaySteps} to goal`}
+            </div>
           </div>
 
           {/* Calories */}
@@ -402,40 +630,158 @@ export default function ExercisePage() {
           </div>
         </div>
 
-        {/* Activity Chart */}
+        {/* Activity Chart - Chart.js Line Graph */}
         <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-6 border border-border/50 shadow-lg">
           <h2 className="text-xl font-semibold mb-6">Weekly Activity</h2>
-          <div className="h-64 flex items-end justify-between gap-3">
-            {weeklyActivity.map((data) => {
-              const getColor = (minutes: number) => {
-                if (minutes === 0) return 'from-gray-400 to-gray-500';
-                if (minutes >= 60) return 'from-green-500 to-emerald-600';
-                if (minutes >= 30) return 'from-cyan-500 to-blue-500';
-                return 'from-amber-500 to-orange-500';
-              };
+          <div className="h-64">
+            <Line
+              data={{
+                labels: weeklyActivity.map((d) => d.day),
+                datasets: [
+                  {
+                    label: 'Workout Minutes',
+                    data: weeklyActivity.map((d) => d.minutes),
+                    borderColor: 'rgb(139, 92, 246)',
+                    backgroundColor: (context) => {
+                      const ctx = context.chart.ctx;
+                      const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+                      gradient.addColorStop(0, 'rgba(139, 92, 246, 0.5)');
+                      gradient.addColorStop(1, 'rgba(139, 92, 246, 0.05)');
+                      return gradient;
+                    },
+                    tension: 0.4,
+                    fill: true,
+                    pointBackgroundColor: weeklyActivity.map((d) =>
+                      d.minutes === 0
+                        ? 'rgb(156, 163, 175)'
+                        : d.minutes >= 60
+                        ? 'rgb(16, 185, 129)'
+                        : d.minutes >= 30
+                        ? 'rgb(6, 182, 212)'
+                        : 'rgb(245, 158, 11)'
+                    ),
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                  },
+                ],
+              }}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    display: false,
+                  },
+                  tooltip: {
+                    callbacks: {
+                      label: (context) => `${context.parsed.y} minutes`,
+                    },
+                  },
+                },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    max: 120,
+                    ticks: {
+                      callback: (value) => `${value}m`,
+                    },
+                    grid: {
+                      color: 'rgba(156, 163, 175, 0.2)',
+                    },
+                  },
+                  x: {
+                    grid: {
+                      display: false,
+                    },
+                  },
+                },
+              }}
+            />
+          </div>
+        </div>
 
-              return (
-                <div
-                  key={data.day}
-                  className="flex-1 flex flex-col items-center gap-2 group relative"
-                >
-                  <div
-                    className={`w-full bg-gradient-to-t ${getColor(
-                      data.minutes
-                    )} rounded-t-lg transition-all hover:opacity-80`}
-                    style={{ height: `${data.value || 5}%` }}
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    {data.day}
-                  </span>
-                  {data.minutes > 0 && (
-                    <div className="absolute -top-8 bg-popover border border-border px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                      {data.minutes} min
-                    </div>
-                  )}
+        {/* Weekly Steps Chart */}
+        <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-6 border border-border/50 shadow-lg">
+          <h2 className="text-xl font-semibold mb-6">Weekly Steps</h2>
+          <div className="h-64">
+            {weeklySteps.length > 0 ? (
+              <Line
+                data={{
+                  labels: weeklySteps.map((d) => d.day),
+                  datasets: [
+                    {
+                      label: 'Steps',
+                      data: weeklySteps.map((d) => d.steps),
+                      borderColor: 'rgb(59, 130, 246)',
+                      backgroundColor: (context) => {
+                        const ctx = context.chart.ctx;
+                        const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+                        gradient.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
+                        gradient.addColorStop(1, 'rgba(59, 130, 246, 0.05)');
+                        return gradient;
+                      },
+                      tension: 0.4,
+                      fill: true,
+                      pointBackgroundColor: weeklySteps.map((d) =>
+                        d.steps === 0
+                          ? 'rgb(156, 163, 175)'
+                          : d.steps >= 10000
+                          ? 'rgb(34, 197, 94)'
+                          : d.steps >= 5000
+                          ? 'rgb(59, 130, 246)'
+                          : 'rgb(245, 158, 11)'
+                      ),
+                      pointBorderColor: '#fff',
+                      pointBorderWidth: 2,
+                      pointRadius: 6,
+                      pointHoverRadius: 8,
+                    },
+                  ],
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      display: false,
+                    },
+                    tooltip: {
+                      callbacks: {
+                        label: (context) =>
+                          `${(context.parsed.y ?? 0).toLocaleString()} steps`,
+                      },
+                    },
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      max: Math.max(...weeklySteps.map((d) => d.steps), 15000),
+                      ticks: {
+                        callback: (value) =>
+                          `${(value as number).toLocaleString()}`,
+                      },
+                      grid: {
+                        color: 'rgba(156, 163, 175, 0.2)',
+                      },
+                    },
+                    x: {
+                      grid: {
+                        display: false,
+                      },
+                    },
+                  },
+                }}
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center text-muted-foreground">
+                <div className="text-center">
+                  <p className="mb-2">No steps data yet</p>
+                  <p className="text-sm">Click "Log Steps" to start tracking</p>
                 </div>
-              );
-            })}
+              </div>
+            )}
           </div>
         </div>
 
@@ -855,6 +1201,90 @@ export default function ExercisePage() {
                   className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSaving ? 'Saving...' : 'Save Workout'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Steps Modal */}
+      {showStepsModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full border border-border">
+            {/* Modal Header */}
+            <div className="bg-card border-b border-border p-6 flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Log Steps</h2>
+              <button
+                onClick={() => setShowStepsModal(false)}
+                className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleSaveSteps} className="p-6 space-y-6">
+              {/* Date */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-muted-foreground uppercase">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={stepsFormData.date}
+                  onChange={(e) =>
+                    setStepsFormData({ ...stepsFormData, date: e.target.value })
+                  }
+                  max={new Date().toISOString().split('T')[0]}
+                  className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                  required
+                />
+              </div>
+
+              {/* Steps Count */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-muted-foreground uppercase">
+                  Steps Count
+                </label>
+                <input
+                  type="number"
+                  value={stepsFormData.steps}
+                  onChange={(e) =>
+                    setStepsFormData({
+                      ...stepsFormData,
+                      steps: e.target.value,
+                    })
+                  }
+                  placeholder="10000"
+                  min="0"
+                  className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                  required
+                />
+              </div>
+
+              {/* Goal Reference */}
+              <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                <div className="text-sm text-muted-foreground">Daily Goal</div>
+                <div className="text-2xl font-bold text-blue-500">
+                  10,000 steps
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowStepsModal(false)}
+                  className="flex-1 px-6 py-3 bg-muted/20 text-muted-foreground rounded-xl font-semibold hover:bg-muted/30 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
+                >
+                  Save Steps
                 </button>
               </div>
             </form>
