@@ -75,9 +75,10 @@ export default function ExercisePage() {
   const getInitialWeeklyActivity = () => {
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const activities = [];
+    const today = new Date();
     for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
+      const date = new Date(today);
+      date.setDate(today.getDate() - i);
       const dayName = dayNames[date.getDay()];
       activities.push({
         day: dayName,
@@ -216,7 +217,12 @@ export default function ExercisePage() {
       const today = new Date();
       const sevenDaysAgo = new Date(today);
       sevenDaysAgo.setDate(today.getDate() - 6);
-      const startDate = sevenDaysAgo.toISOString().split('T')[0];
+
+      // Use local date to avoid timezone issues
+      const year = sevenDaysAgo.getFullYear();
+      const month = String(sevenDaysAgo.getMonth() + 1).padStart(2, '0');
+      const day = String(sevenDaysAgo.getDate()).padStart(2, '0');
+      const startDate = `${year}-${month}-${day}`;
 
       console.log(
         `Fetching workouts from ${startDate} to today from Supabase...`
@@ -255,7 +261,13 @@ export default function ExercisePage() {
       for (let i = 6; i >= 0; i--) {
         const date = new Date(today);
         date.setDate(today.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
+
+        // Use local date to avoid timezone issues
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+
         const dayName = dayNames[date.getDay()];
 
         // Filter workouts from database for this specific day
