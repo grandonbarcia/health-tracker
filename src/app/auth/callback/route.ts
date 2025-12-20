@@ -25,7 +25,16 @@ export async function GET(request: Request) {
         },
       }
     );
-    await supabase.auth.exchangeCodeForSession(code);
+    
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    
+    // Check if this is a new user (email confirmation) vs existing user sign in
+    if (data?.session && !error) {
+      // Redirect to dashboard with confirmation message
+      const redirectUrl = new URL('/dashboard', request.url);
+      redirectUrl.searchParams.set('confirmed', 'true');
+      return NextResponse.redirect(redirectUrl);
+    }
   }
 
   // URL to redirect to after sign in process completes

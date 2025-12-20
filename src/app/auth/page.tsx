@@ -108,15 +108,14 @@ export default function AuthPage() {
 
       setMessage({
         type: 'success',
-        text: 'Account created! Check your email to confirm your account, then sign in.',
+        text: 'Account created! Check your email to confirm your account. After confirming, you\'ll be redirected back to the app automatically.',
       });
 
-      // Switch to sign in form after successful signup
+      // Clear form fields after successful signup
       setTimeout(() => {
-        setIsSignUp(false);
         setPassword('');
         setConfirmPassword('');
-      }, 3000);
+      }, 1000);
     } catch (error: any) {
       setMessage({
         type: 'error',
