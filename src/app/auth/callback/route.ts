@@ -25,9 +25,9 @@ export async function GET(request: Request) {
         },
       }
     );
-    
+
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-    
+
     // Check if this is a new user (email confirmation) vs existing user sign in
     if (data?.session && !error) {
       // Redirect to dashboard with confirmation message

@@ -108,7 +108,7 @@ export default function AuthPage() {
 
       setMessage({
         type: 'success',
-        text: 'Account created! Check your email to confirm your account. After confirming, you\'ll be redirected back to the app automatically.',
+        text: "Account created! Check your email to confirm your account. After confirming, you'll be redirected back to the app automatically.",
       });
 
       // Clear form fields after successful signup
