@@ -7,10 +7,19 @@ import {
 } from '@/types/workouts';
 import { calculateWorkoutVolume } from '@/lib/workoutUtils';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function createSupabaseClient(authHeader: string) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    }
+  );
+}
 
 // GET /api/workouts/stats - Get workout statistics
 export async function GET(request: NextRequest) {
@@ -18,6 +27,8 @@ export async function GET(request: NextRequest) {
   if (!authHeader) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const supabase = createSupabaseClient(authHeader);
 
   try {
     // Get authenticated user

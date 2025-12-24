@@ -2,18 +2,43 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { WorkoutInput } from '@/types/workouts';
 import { validateWorkout } from '@/lib/workoutUtils';
+import { checkRateLimit, getClientIdentifier } from '@/lib/rateLimit';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function createSupabaseClient(authHeader: string) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    }
+  );
+}
 
 // GET /api/workouts - Fetch workouts with optional filters
 export async function GET(request: NextRequest) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`workouts:${clientId}`, {
+    maxRequests: 100,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   const authHeader = request.headers.get('authorization');
   if (!authHeader) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const supabase = createSupabaseClient(authHeader);
 
   try {
     // Get authenticated user
@@ -108,6 +133,8 @@ export async function POST(request: NextRequest) {
   if (!authHeader) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const supabase = createSupabaseClient(authHeader);
 
   try {
     // Get authenticated user

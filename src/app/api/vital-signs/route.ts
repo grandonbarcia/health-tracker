@@ -1,12 +1,53 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '../../../lib/supabaseClient';
+import { checkRateLimit, getClientIdentifier } from '../../../lib/rateLimit';
+import { validateDate } from '../../../lib/validation';
 
 export async function GET(req: Request) {
+  // Rate limiting
+  const clientId = getClientIdentifier(req);
+  const rateLimit = checkRateLimit(`vitals:${clientId}`, {
+    maxRequests: 100,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   const url = new URL(req.url);
   const date = url.searchParams.get('date');
   const startDate = url.searchParams.get('startDate');
   const endDate = url.searchParams.get('endDate');
-  const limit = parseInt(url.searchParams.get('limit') || '50');
+  const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 500); // Cap at 500
+
+  // Validate date parameters if provided
+  if (date) {
+    const dateValidation = validateDate(date);
+    if (!dateValidation.valid) {
+      return NextResponse.json(
+        { error: dateValidation.error },
+        { status: 400 }
+      );
+    }
+  }
+  if (startDate) {
+    const startValidation = validateDate(startDate);
+    if (!startValidation.valid) {
+      return NextResponse.json(
+        { error: startValidation.error },
+        { status: 400 }
+      );
+    }
+  }
+  if (endDate) {
+    const endValidation = validateDate(endDate);
+    if (!endValidation.valid) {
+      return NextResponse.json({ error: endValidation.error }, { status: 400 });
+    }
+  }
 
   try {
     const {
