@@ -56,8 +56,9 @@ export async function GET(req: Request) {
     const items = data?.data ?? { breakfast: [], lunch: [], dinner: [] };
     return NextResponse.json({ ok: true, items });
   } catch (err) {
+    console.error('Error loading day:', err);
     return NextResponse.json(
-      { ok: false, error: String(err) },
+      { ok: false, error: 'Failed to load day data' },
       { status: 500 }
     );
   }

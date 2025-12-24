@@ -54,10 +54,7 @@ export async function POST(req: Request) {
     return NextResponse.json(data, { status: 201 });
   } catch (err: any) {
     console.error('Error adding food:', err);
-    return NextResponse.json(
-      { error: err.message || String(err) },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to add food' }, { status: 500 });
   }
 }
 
@@ -74,7 +71,7 @@ export async function GET(req: Request) {
   } catch (err: any) {
     console.error('Error fetching foods:', err);
     return NextResponse.json(
-      { error: err.message || String(err) },
+      { error: 'Failed to fetch foods' },
       { status: 500 }
     );
   }

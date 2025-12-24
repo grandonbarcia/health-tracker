@@ -11,8 +11,9 @@ export async function GET(req: Request, { params }: { params: any }) {
       return NextResponse.json({ error: 'not found' }, { status: 404 });
     return NextResponse.json(data);
   } catch (err: any) {
+    console.error('Error fetching food:', err);
     return NextResponse.json(
-      { error: err.message || String(err) },
+      { error: 'Failed to fetch food' },
       { status: 500 }
     );
   }

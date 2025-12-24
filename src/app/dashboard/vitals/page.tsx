@@ -132,9 +132,6 @@ export default function VitalsPage() {
         return;
       }
 
-      console.log("Today's readings loaded:", data);
-      console.log('Number of readings:', data?.length || 0);
-
       // Sort by reading_time if available, otherwise by created_at
       const sortedData = (data || []).sort((a, b) => {
         const timeA = a.reading_time || a.created_at;
@@ -143,7 +140,6 @@ export default function VitalsPage() {
       });
 
       setTodaysReadings(sortedData);
-      console.log('Sorted readings:', sortedData);
     } catch (error) {
       console.error("Error loading today's readings:", error);
     }

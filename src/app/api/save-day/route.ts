@@ -63,8 +63,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
+    console.error('Error saving day:', err);
     return NextResponse.json(
-      { ok: false, error: String(err) },
+      { ok: false, error: 'Failed to save day data' },
       { status: 500 }
     );
   }

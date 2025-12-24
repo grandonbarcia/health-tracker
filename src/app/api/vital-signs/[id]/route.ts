@@ -32,7 +32,10 @@ export async function GET(
     return NextResponse.json(data);
   } catch (err: any) {
     console.error('Error fetching vital sign:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch vital sign' },
+      { status: 500 }
+    );
   }
 }
 
@@ -90,7 +93,10 @@ export async function PUT(
     return NextResponse.json(data);
   } catch (err: any) {
     console.error('Error updating vital sign:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to update vital sign' },
+      { status: 500 }
+    );
   }
 }
 
@@ -119,6 +125,9 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('Error deleting vital sign:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to delete vital sign' },
+      { status: 500 }
+    );
   }
 }

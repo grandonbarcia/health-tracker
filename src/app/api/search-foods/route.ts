@@ -9,8 +9,9 @@ export async function GET(req: Request) {
     const data = await searchFoods(q, limit);
     return NextResponse.json(data);
   } catch (err: any) {
+    console.error('Error searching foods:', err);
     return NextResponse.json(
-      { error: err.message || String(err) },
+      { error: 'Failed to search foods' },
       { status: 500 }
     );
   }

@@ -31,8 +31,9 @@ export async function GET(req: Request) {
     const days = (data ?? []).map((r: any) => r.date);
     return NextResponse.json({ ok: true, days });
   } catch (err) {
+    console.error('Error listing days:', err);
     return NextResponse.json(
-      { ok: false, error: String(err) },
+      { ok: false, error: 'Failed to list days' },
       { status: 500 }
     );
   }

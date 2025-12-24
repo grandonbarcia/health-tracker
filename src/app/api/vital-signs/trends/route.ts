@@ -101,6 +101,9 @@ export async function GET(req: Request) {
     return NextResponse.json(trends);
   } catch (err: any) {
     console.error('Error fetching vital signs trends:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch trends' },
+      { status: 500 }
+    );
   }
 }
