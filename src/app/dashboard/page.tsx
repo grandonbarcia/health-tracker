@@ -45,12 +45,25 @@ function Home() {
   const [weeklyCalories, setWeeklyCalories] = useState<number[]>([]);
   const [weeklyHeartRates, setWeeklyHeartRates] = useState<number[]>([]);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [todayVitals, setTodayVitals] = useState({
+    heartRate: 0,
+    systolic: 0,
+    diastolic: 0,
+    sleep: 0,
+  });
+  const [todayExercise, setTodayExercise] = useState({
+    steps: 0,
+    activeCalories: 0,
+    workoutDuration: 0,
+  });
 
   useEffect(() => {
     loadTodaysMeals();
     loadWeeklyCalories();
     loadWeeklyVitals();
-    
+    loadTodayVitals();
+    loadTodayExercise();
+
     // Check if user just confirmed their email
     if (searchParams.get('confirmed') === 'true') {
       setShowConfirmation(true);
@@ -267,6 +280,96 @@ function Home() {
     }
   };
 
+  const loadTodayVitals = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const today = new Date().toISOString().split('T')[0];
+
+      const { data: vitalsData, error } = await supabase
+        .from('user_vitals')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('reading_date', today)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') throw error;
+
+      if (vitalsData) {
+        setTodayVitals({
+          heartRate: vitalsData.heart_rate || 0,
+          systolic: vitalsData.blood_pressure_systolic || 0,
+          diastolic: vitalsData.blood_pressure_diastolic || 0,
+          sleep: vitalsData.sleep_hours || 0,
+        });
+      } else {
+        setTodayVitals({
+          heartRate: 0,
+          systolic: 0,
+          diastolic: 0,
+          sleep: 0,
+        });
+      }
+    } catch (error) {
+      console.error('Error loading today vitals:', error);
+      setTodayVitals({
+        heartRate: 0,
+        systolic: 0,
+        diastolic: 0,
+        sleep: 0,
+      });
+    }
+  };
+
+  const loadTodayExercise = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const today = new Date().toISOString().split('T')[0];
+
+      // Load steps data
+      const { data: stepsData } = await supabase
+        .from('user_steps')
+        .select('step_count')
+        .eq('user_id', user.id)
+        .eq('step_date', today)
+        .maybeSingle();
+
+      // Load workouts data
+      const { data: workoutsData } = await supabase
+        .from('user_workouts')
+        .select('duration_minutes, calories_burned')
+        .eq('user_id', user.id)
+        .eq('workout_date', today);
+
+      const totalDuration =
+        workoutsData?.reduce((sum, w) => sum + (w.duration_minutes || 0), 0) ||
+        0;
+      const totalCalories =
+        workoutsData?.reduce((sum, w) => sum + (w.calories_burned || 0), 0) ||
+        0;
+
+      setTodayExercise({
+        steps: stepsData?.step_count || 0,
+        activeCalories: totalCalories,
+        workoutDuration: totalDuration,
+      });
+    } catch (error) {
+      console.error('Error loading today exercise:', error);
+      setTodayExercise({
+        steps: 0,
+        activeCalories: 0,
+        workoutDuration: 0,
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -279,7 +382,8 @@ function Home() {
                 Welcome! Your account has been successfully confirmed.
               </p>
               <p className="text-green-600 dark:text-green-400 text-sm mt-1">
-                You're all set to start tracking your health and fitness journey!
+                You're all set to start tracking your health and fitness
+                journey!
               </p>
             </div>
             <button
@@ -291,7 +395,7 @@ function Home() {
             </button>
           </div>
         )}
-        
+
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 via-purple-600 to-blue-600 dark:from-green-400 dark:via-purple-400 dark:to-blue-400 bg-clip-text text-transparent">
@@ -574,7 +678,9 @@ function Home() {
                 Heart Rate
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-bold">72</span>
+                <span className="text-4xl font-bold">
+                  {todayVitals.heartRate}
+                </span>
                 <span className="text-muted-foreground">bpm</span>
               </div>
               <Activity className="w-6 h-6 text-green-500 mt-2" />
@@ -586,7 +692,9 @@ function Home() {
                 Blood Pressure
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold">120/80</span>
+                <span className="text-2xl font-bold">
+                  {todayVitals.systolic}/{todayVitals.diastolic}
+                </span>
                 <span className="text-muted-foreground">mmHg</span>
               </div>
               <div className="mt-2 flex justify-end">
@@ -608,7 +716,7 @@ function Home() {
             <div className="mb-6">
               <div className="text-sm text-muted-foreground mb-1">Sleep</div>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold">8.2</span>
+                <span className="text-2xl font-bold">{todayVitals.sleep}</span>
                 <span className="text-muted-foreground">hrs</span>
               </div>
             </div>
@@ -674,7 +782,7 @@ function Home() {
             {/* Steps */}
             <div className="mb-6">
               <div className="text-5xl font-bold bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent mb-1">
-                10,245
+                {todayExercise.steps.toLocaleString()}
               </div>
               <div className="text-sm text-muted-foreground uppercase tracking-wider">
                 STEPS
@@ -687,7 +795,9 @@ function Home() {
               <div className="text-sm text-muted-foreground mb-1">
                 Active Calories
               </div>
-              <div className="text-3xl font-bold">450</div>
+              <div className="text-3xl font-bold">
+                {todayExercise.activeCalories}
+              </div>
             </div>
 
             {/* Workout Duration */}
@@ -696,7 +806,9 @@ function Home() {
                 Workout Duration
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold">60</span>
+                <span className="text-3xl font-bold">
+                  {todayExercise.workoutDuration}
+                </span>
                 <span className="text-muted-foreground">min</span>
               </div>
             </div>
