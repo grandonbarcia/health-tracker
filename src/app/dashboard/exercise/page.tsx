@@ -59,6 +59,24 @@ interface Exercise {
   exercise_order: number;
 }
 
+interface ExerciseGoal {
+  id: string;
+  user_id: string;
+  goal_type: 'steps' | 'workout_days' | 'calories' | 'workout_duration';
+  goal_name: string;
+  target_value: number;
+  time_period: 'daily' | 'weekly';
+  is_active: boolean;
+  created_at: string;
+}
+
+interface GoalProgress {
+  goal: ExerciseGoal;
+  currentValue: number;
+  progress: number;
+  status: 'Completed' | 'In Progress';
+}
+
 export default function ExercisePage() {
   const router = useRouter();
   const [showModal, setShowModal] = useState(false);
@@ -105,6 +123,21 @@ export default function ExercisePage() {
   const [workoutExercises, setWorkoutExercises] = useState<
     Record<string, Exercise[]>
   >({});
+  const [showGoalsModal, setShowGoalsModal] = useState(false);
+  const [goals, setGoals] = useState<ExerciseGoal[]>([]);
+  const [goalProgress, setGoalProgress] = useState<GoalProgress[]>([]);
+  const [completedGoalsCount, setCompletedGoalsCount] = useState(0);
+  const [goalFormData, setGoalFormData] = useState({
+    goalType: 'steps' as
+      | 'steps'
+      | 'workout_days'
+      | 'calories'
+      | 'workout_duration',
+    goalName: '',
+    targetValue: '',
+    timePeriod: 'daily' as 'daily' | 'weekly',
+  });
+  const [isSavingGoal, setIsSavingGoal] = useState(false);
 
   const [formData, setFormData] = useState({
     workoutDate: new Date().toISOString().split('T')[0],
@@ -128,6 +161,7 @@ export default function ExercisePage() {
     loadTodayStats();
     loadWeeklyStats();
     loadWeeklySteps();
+    loadGoals();
   }, []);
 
   const loadWorkouts = async () => {
@@ -368,6 +402,229 @@ export default function ExercisePage() {
       setTodaySteps(todayData?.step_count || 0);
     } catch (error) {
       console.error('Error loading weekly steps:', error);
+    }
+  };
+
+  const loadGoals = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: goalsData, error } = await supabase
+        .from('user_exercise_goals')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading goals:', error);
+        console.log(
+          'Note: Run scripts/create-exercise-goals-table.sql to create the goals table'
+        );
+        return;
+      }
+
+      setGoals(goalsData || []);
+
+      // Calculate progress for each goal
+      if (goalsData && goalsData.length > 0) {
+        await calculateGoalProgress(goalsData, user.id);
+      }
+    } catch (error) {
+      console.error('Error loading goals:', error);
+    }
+  };
+
+  const calculateGoalProgress = async (
+    goalsData: ExerciseGoal[],
+    userId: string
+  ) => {
+    try {
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+
+      // Get start of week (Sunday)
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay());
+      const weekStartStr = startOfWeek.toISOString().split('T')[0];
+
+      // Fetch all necessary data for progress calculation
+      const [stepsResult, workoutsResult] = await Promise.all([
+        supabase
+          .from('user_steps')
+          .select('step_date, step_count')
+          .eq('user_id', userId)
+          .gte('step_date', weekStartStr),
+        supabase
+          .from('user_workouts')
+          .select('workout_date, duration_minutes, calories_burned')
+          .eq('user_id', userId)
+          .gte('workout_date', weekStartStr),
+      ]);
+
+      const stepsData = stepsResult.data || [];
+      const workoutsData = workoutsResult.data || [];
+
+      // Calculate progress for each goal
+      const progressData: GoalProgress[] = goalsData.map((goal) => {
+        let currentValue = 0;
+
+        if (goal.time_period === 'daily') {
+          // Daily goals - only count today's data
+          switch (goal.goal_type) {
+            case 'steps':
+              const todaySteps = stepsData.find(
+                (s) => s.step_date === todayStr
+              );
+              currentValue = todaySteps?.step_count || 0;
+              break;
+            case 'workout_days':
+              const todayWorkouts = workoutsData.filter(
+                (w) => w.workout_date === todayStr
+              );
+              currentValue = todayWorkouts.length > 0 ? 1 : 0;
+              break;
+            case 'calories':
+              const todayCals = workoutsData
+                .filter((w) => w.workout_date === todayStr)
+                .reduce((sum, w) => sum + (w.calories_burned || 0), 0);
+              currentValue = todayCals;
+              break;
+            case 'workout_duration':
+              const todayDuration = workoutsData
+                .filter((w) => w.workout_date === todayStr)
+                .reduce((sum, w) => sum + (w.duration_minutes || 0), 0);
+              currentValue = todayDuration;
+              break;
+          }
+        } else {
+          // Weekly goals - count this week's data
+          switch (goal.goal_type) {
+            case 'steps':
+              currentValue = stepsData.reduce(
+                (sum, s) => sum + (s.step_count || 0),
+                0
+              );
+              break;
+            case 'workout_days':
+              const uniqueDays = new Set(
+                workoutsData.map((w) => w.workout_date)
+              );
+              currentValue = uniqueDays.size;
+              break;
+            case 'calories':
+              currentValue = workoutsData.reduce(
+                (sum, w) => sum + (w.calories_burned || 0),
+                0
+              );
+              break;
+            case 'workout_duration':
+              currentValue = workoutsData.reduce(
+                (sum, w) => sum + (w.duration_minutes || 0),
+                0
+              );
+              break;
+          }
+        }
+
+        const progress = Math.min(
+          (currentValue / goal.target_value) * 100,
+          100
+        );
+        const status = progress >= 100 ? 'Completed' : 'In Progress';
+
+        return { goal, currentValue, progress, status };
+      });
+
+      setGoalProgress(progressData);
+
+      // Count completed goals
+      const completed = progressData.filter(
+        (p) => p.status === 'Completed'
+      ).length;
+      setCompletedGoalsCount(completed);
+    } catch (error) {
+      console.error('Error calculating goal progress:', error);
+    }
+  };
+
+  const handleSaveGoal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingGoal(true);
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        alert('Please log in to save goals');
+        return;
+      }
+
+      const { error } = await supabase.from('user_exercise_goals').insert({
+        user_id: user.id,
+        goal_type: goalFormData.goalType,
+        goal_name: goalFormData.goalName,
+        target_value: parseInt(goalFormData.targetValue),
+        time_period: goalFormData.timePeriod,
+        is_active: true,
+      });
+
+      if (error) throw error;
+
+      // Reset form and close modal
+      setGoalFormData({
+        goalType: 'steps',
+        goalName: '',
+        targetValue: '',
+        timePeriod: 'daily',
+      });
+      setShowGoalsModal(false);
+
+      // Reload goals
+      await loadGoals();
+    } catch (error) {
+      console.error('Error saving goal:', error);
+      alert('Failed to save goal. Please try again.');
+    } finally {
+      setIsSavingGoal(false);
+    }
+  };
+
+  const handleDeleteGoal = async (goalId: string) => {
+    if (!confirm('Are you sure you want to delete this goal?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('user_exercise_goals')
+        .delete()
+        .eq('id', goalId);
+
+      if (error) throw error;
+
+      // Reload goals
+      await loadGoals();
+    } catch (error) {
+      console.error('Error deleting goal:', error);
+      alert('Failed to delete goal. Please try again.');
+    }
+  };
+
+  const getGoalTypeLabel = (type: string) => {
+    switch (type) {
+      case 'steps':
+        return 'steps';
+      case 'workout_days':
+        return 'days';
+      case 'calories':
+        return 'calories';
+      case 'workout_duration':
+        return 'minutes';
+      default:
+        return '';
     }
   };
 
@@ -626,18 +883,31 @@ export default function ExercisePage() {
           </div>
 
           {/* Weekly Goal */}
-          <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 backdrop-blur-sm rounded-2xl p-6 border border-green-500/20 shadow-lg">
+          <div
+            onClick={() => setShowGoalsModal(true)}
+            className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 backdrop-blur-sm rounded-2xl p-6 border border-green-500/20 shadow-lg cursor-pointer hover:scale-105 transition-transform"
+          >
             <div className="flex items-center gap-2 mb-2">
               <Trophy className="w-4 h-4 text-green-500" />
-              <div className="text-sm text-muted-foreground">Weekly Goal</div>
+              <div className="text-sm text-muted-foreground">
+                Goals Completed
+              </div>
             </div>
-            <div className="text-4xl font-bold">{weeklyWorkouts}/7</div>
+            <div className="text-4xl font-bold">
+              {completedGoalsCount}/{goals.length || 0}
+            </div>
             <div
               className={`text-xs mt-2 ${
-                weeklyWorkouts >= 5 ? 'text-green-500' : 'text-muted-foreground'
+                goals.length > 0 && completedGoalsCount === goals.length
+                  ? 'text-green-500'
+                  : 'text-muted-foreground'
               }`}
             >
-              {weeklyWorkouts >= 5 ? 'Goal reached!' : 'days this week'}
+              {goals.length === 0
+                ? 'Set your goals'
+                : completedGoalsCount === goals.length
+                ? 'All goals reached!'
+                : 'goals this period'}
             </div>
           </div>
         </div>
@@ -937,58 +1207,74 @@ export default function ExercisePage() {
 
           {/* Goals & Achievements */}
           <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-6 border border-border/50 shadow-lg">
-            <div className="flex items-center gap-2 mb-4">
-              <Target className="w-5 h-5 text-purple-500" />
-              <h2 className="text-xl font-semibold">Goals & Achievements</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Target className="w-5 h-5 text-purple-500" />
+                <h2 className="text-xl font-semibold">Goals & Achievements</h2>
+              </div>
+              <button
+                onClick={() => setShowGoalsModal(true)}
+                className="px-3 py-1.5 bg-purple-500/10 text-purple-500 rounded-lg text-sm font-medium hover:bg-purple-500/20 transition-colors flex items-center gap-1"
+              >
+                <Plus className="w-4 h-4" />
+                Add Goal
+              </button>
             </div>
             <div className="space-y-4">
-              {[
-                {
-                  goal: '10,000 steps daily',
-                  progress: 102,
-                  status: 'Completed',
-                },
-                {
-                  goal: 'Exercise 5 days/week',
-                  progress: 71,
-                  status: 'In Progress',
-                },
-                {
-                  goal: 'Burn 2,000 calories/week',
-                  progress: 85,
-                  status: 'In Progress',
-                },
-                {
-                  goal: '30 min cardio daily',
-                  progress: 100,
-                  status: 'Completed',
-                },
-              ].map((item, i) => (
-                <div key={i} className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="font-medium">{item.goal}</span>
-                    <span
-                      className={
-                        item.progress >= 100
-                          ? 'text-green-500'
-                          : 'text-muted-foreground'
-                      }
-                    >
-                      {item.status}
-                    </span>
-                  </div>
-                  <div className="h-2 bg-muted/20 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${
-                        item.progress >= 100
-                          ? 'bg-gradient-to-r from-green-500 to-emerald-600'
-                          : 'bg-gradient-to-r from-purple-500 to-blue-500'
-                      } transition-all`}
-                      style={{ width: `${Math.min(item.progress, 100)}%` }}
-                    />
-                  </div>
+              {goalProgress.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p className="text-lg mb-2">No goals set yet</p>
+                  <p className="text-sm">
+                    Click "Add Goal" to create your first goal
+                  </p>
                 </div>
-              ))}
+              ) : (
+                goalProgress.map((item) => (
+                  <div key={item.goal.id} className="space-y-2">
+                    <div className="flex justify-between items-start text-sm">
+                      <div className="flex-1">
+                        <span className="font-medium">
+                          {item.goal.goal_name}
+                        </span>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {item.currentValue.toLocaleString()} /{' '}
+                          {item.goal.target_value.toLocaleString()}{' '}
+                          {getGoalTypeLabel(item.goal.goal_type)} (
+                          {item.goal.time_period})
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={
+                            item.progress >= 100
+                              ? 'text-green-500'
+                              : 'text-muted-foreground'
+                          }
+                        >
+                          {item.status}
+                        </span>
+                        <button
+                          onClick={() => handleDeleteGoal(item.goal.id)}
+                          className="p-1 text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                          title="Delete goal"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="h-2 bg-muted/20 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${
+                          item.progress >= 100
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-600'
+                            : 'bg-gradient-to-r from-purple-500 to-blue-500'
+                        } transition-all`}
+                        style={{ width: `${Math.min(item.progress, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -1038,16 +1324,51 @@ export default function ExercisePage() {
                   onChange={(e) =>
                     setFormData({ ...formData, workoutType: e.target.value })
                   }
-                  className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/50 transition-all"
+                  className="w-full px-4 py-3 bg-background dark:bg-muted/40 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/50 transition-all text-foreground"
                   required
                 >
-                  <option value="Strength">Strength Training</option>
-                  <option value="Cardio">Cardio</option>
-                  <option value="Yoga">Yoga</option>
-                  <option value="HIIT">HIIT</option>
-                  <option value="Sports">Sports</option>
-                  <option value="Flexibility">Flexibility</option>
-                  <option value="Other">Other</option>
+                  <option
+                    value="Strength"
+                    className="bg-background dark:bg-zinc-800 text-foreground"
+                  >
+                    Strength Training
+                  </option>
+                  <option
+                    value="Cardio"
+                    className="bg-background dark:bg-zinc-800 text-foreground"
+                  >
+                    Cardio
+                  </option>
+                  <option
+                    value="Yoga"
+                    className="bg-background dark:bg-zinc-800 text-foreground"
+                  >
+                    Yoga
+                  </option>
+                  <option
+                    value="HIIT"
+                    className="bg-background dark:bg-zinc-800 text-foreground"
+                  >
+                    HIIT
+                  </option>
+                  <option
+                    value="Sports"
+                    className="bg-background dark:bg-zinc-800 text-foreground"
+                  >
+                    Sports
+                  </option>
+                  <option
+                    value="Flexibility"
+                    className="bg-background dark:bg-zinc-800 text-foreground"
+                  >
+                    Flexibility
+                  </option>
+                  <option
+                    value="Other"
+                    className="bg-background dark:bg-zinc-800 text-foreground"
+                  >
+                    Other
+                  </option>
                 </select>
               </div>
 
@@ -1297,6 +1618,181 @@ export default function ExercisePage() {
                   className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
                 >
                   Save Steps
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Goals Modal */}
+      {showGoalsModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full border border-border">
+            {/* Modal Header */}
+            <div className="bg-card border-b border-border p-6 flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Set Exercise Goal</h2>
+              <button
+                onClick={() => setShowGoalsModal(false)}
+                className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleSaveGoal} className="p-6 space-y-6">
+              {/* Goal Name */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-muted-foreground uppercase">
+                  Goal Name
+                </label>
+                <input
+                  type="text"
+                  value={goalFormData.goalName}
+                  onChange={(e) =>
+                    setGoalFormData({
+                      ...goalFormData,
+                      goalName: e.target.value,
+                    })
+                  }
+                  placeholder="e.g., Daily 10K steps"
+                  className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all"
+                  required
+                />
+              </div>
+
+              {/* Goal Type */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-muted-foreground uppercase">
+                  Goal Type
+                </label>
+                <select
+                  value={goalFormData.goalType}
+                  onChange={(e) =>
+                    setGoalFormData({
+                      ...goalFormData,
+                      goalType: e.target.value as any,
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-background dark:bg-muted/40 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all text-foreground"
+                  required
+                >
+                  <option
+                    value="steps"
+                    className="bg-background dark:bg-zinc-800 text-foreground"
+                  >
+                    Steps
+                  </option>
+                  <option
+                    value="workout_days"
+                    className="bg-background dark:bg-zinc-800 text-foreground"
+                  >
+                    Workout Days
+                  </option>
+                  <option
+                    value="calories"
+                    className="bg-background dark:bg-zinc-800 text-foreground"
+                  >
+                    Calories Burned
+                  </option>
+                  <option
+                    value="workout_duration"
+                    className="bg-background dark:bg-zinc-800 text-foreground"
+                  >
+                    Workout Duration (minutes)
+                  </option>
+                </select>
+              </div>
+
+              {/* Target Value */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-muted-foreground uppercase">
+                  Target Value
+                </label>
+                <input
+                  type="number"
+                  value={goalFormData.targetValue}
+                  onChange={(e) =>
+                    setGoalFormData({
+                      ...goalFormData,
+                      targetValue: e.target.value,
+                    })
+                  }
+                  placeholder={
+                    goalFormData.goalType === 'steps'
+                      ? '10000'
+                      : goalFormData.goalType === 'workout_days'
+                      ? '5'
+                      : goalFormData.goalType === 'calories'
+                      ? '2000'
+                      : '30'
+                  }
+                  min="1"
+                  className="w-full px-4 py-3 bg-muted/20 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all"
+                  required
+                />
+              </div>
+
+              {/* Time Period */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-muted-foreground uppercase">
+                  Time Period
+                </label>
+                <select
+                  value={goalFormData.timePeriod}
+                  onChange={(e) =>
+                    setGoalFormData({
+                      ...goalFormData,
+                      timePeriod: e.target.value as any,
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-background dark:bg-muted/40 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all text-foreground"
+                  required
+                >
+                  <option
+                    value="daily"
+                    className="bg-background dark:bg-zinc-800 text-foreground"
+                  >
+                    Daily
+                  </option>
+                  <option
+                    value="weekly"
+                    className="bg-background dark:bg-zinc-800 text-foreground"
+                  >
+                    Weekly
+                  </option>
+                </select>
+              </div>
+
+              {/* Goal Preview */}
+              <div className="p-4 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                <div className="text-sm text-muted-foreground">
+                  Goal Preview
+                </div>
+                <div className="text-lg font-bold text-purple-500 mt-1">
+                  {goalFormData.goalName || 'Your Goal'}:{' '}
+                  {goalFormData.targetValue || '0'}{' '}
+                  {getGoalTypeLabel(goalFormData.goalType)}{' '}
+                  {goalFormData.timePeriod}
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowGoalsModal(false)}
+                  className="flex-1 px-6 py-3 bg-muted/20 text-muted-foreground rounded-xl font-semibold hover:bg-muted/30 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingGoal}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSavingGoal ? 'Saving...' : 'Save Goal'}
                 </button>
               </div>
             </form>
