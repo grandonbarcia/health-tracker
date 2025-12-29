@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { UserProfile, UserProfileInput } from '@/types/profile';
+import { checkRateLimit, getClientIdentifier } from '@/lib/rateLimit';
 
 function createSupabaseClient(authHeader: string) {
   return createClient(
@@ -18,6 +19,19 @@ function createSupabaseClient(authHeader: string) {
 
 // GET /api/profile - Get current user's profile
 export async function GET(request: NextRequest) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`profile-get:${clientId}`, {
+    maxRequests: 60,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   const authHeader = request.headers.get('authorization');
   if (!authHeader) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -62,6 +76,19 @@ export async function GET(request: NextRequest) {
 
 // POST /api/profile - Create initial profile
 export async function POST(request: NextRequest) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`profile-post:${clientId}`, {
+    maxRequests: 10,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   const authHeader = request.headers.get('authorization');
   if (!authHeader) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -78,6 +105,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body: UserProfileInput = await request.json();
+
+    // Validate text field lengths
+    const textFieldError = validateTextFields(body);
+    if (textFieldError) {
+      return NextResponse.json({ error: textFieldError }, { status: 400 });
+    }
 
     // Validate username if provided
     if (body.username) {
@@ -157,6 +190,19 @@ export async function POST(request: NextRequest) {
 
 // PUT /api/profile - Update current user's profile
 export async function PUT(request: NextRequest) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`profile-put:${clientId}`, {
+    maxRequests: 30,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   const authHeader = request.headers.get('authorization');
   if (!authHeader) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -173,6 +219,12 @@ export async function PUT(request: NextRequest) {
     }
 
     const body: UserProfileInput = await request.json();
+
+    // Validate text field lengths
+    const textFieldError = validateTextFields(body);
+    if (textFieldError) {
+      return NextResponse.json({ error: textFieldError }, { status: 400 });
+    }
 
     // Validate username if being updated
     if (body.username !== undefined) {
@@ -293,6 +345,54 @@ function validateUsername(username: string): string | null {
   if (reserved.includes(username.toLowerCase())) {
     return 'This username is reserved';
   }
+  return null;
+}
+
+// Helper: Validate text field lengths
+const TEXT_FIELD_LIMITS = {
+  display_name: 100,
+  bio: 500,
+  location: 100,
+  avatar_url: 500,
+  gender: 20,
+  primary_goal: 50,
+  activity_level: 30,
+} as const;
+
+function validateTextFields(body: any): string | null {
+  for (const [field, maxLength] of Object.entries(TEXT_FIELD_LIMITS)) {
+    const value = body[field];
+    if (value && typeof value === 'string' && value.length > maxLength) {
+      return `${field.replace(
+        '_',
+        ' '
+      )} must be ${maxLength} characters or less`;
+    }
+  }
+
+  // Validate arrays
+  if (body.interests && Array.isArray(body.interests)) {
+    if (body.interests.length > 20) {
+      return 'Maximum 20 interests allowed';
+    }
+    for (const interest of body.interests) {
+      if (typeof interest === 'string' && interest.length > 50) {
+        return 'Each interest must be 50 characters or less';
+      }
+    }
+  }
+
+  if (body.dietary_preferences && Array.isArray(body.dietary_preferences)) {
+    if (body.dietary_preferences.length > 20) {
+      return 'Maximum 20 dietary preferences allowed';
+    }
+    for (const pref of body.dietary_preferences) {
+      if (typeof pref === 'string' && pref.length > 50) {
+        return 'Each dietary preference must be 50 characters or less';
+      }
+    }
+  }
+
   return null;
 }
 

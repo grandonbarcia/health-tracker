@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { WorkoutInput } from '@/types/workouts';
 import { validateWorkout } from '@/lib/workoutUtils';
+import { checkRateLimit, getClientIdentifier } from '@/lib/rateLimit';
+import { validateUUID } from '@/lib/validation';
 
 function createSupabaseClient(authHeader: string) {
   return createClient(
@@ -24,7 +26,30 @@ export async function GET(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`workout-id-get:${clientId}`, {
+    maxRequests: 60,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   const params = await segmentData.params;
+
+  // Validate UUID format
+  const uuidValidation = validateUUID(params.id);
+  if (!uuidValidation.valid) {
+    return NextResponse.json(
+      { error: 'Invalid workout ID format' },
+      { status: 400 }
+    );
+  }
+
   const authHeader = request.headers.get('authorization');
 
   if (!authHeader) {
@@ -111,7 +136,30 @@ export async function PUT(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`workout-id-put:${clientId}`, {
+    maxRequests: 30,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   const params = await segmentData.params;
+
+  // Validate UUID format
+  const uuidValidation = validateUUID(params.id);
+  if (!uuidValidation.valid) {
+    return NextResponse.json(
+      { error: 'Invalid workout ID format' },
+      { status: 400 }
+    );
+  }
+
   const authHeader = request.headers.get('authorization');
 
   if (!authHeader) {
@@ -232,7 +280,30 @@ export async function DELETE(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`workout-id-delete:${clientId}`, {
+    maxRequests: 30,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   const params = await segmentData.params;
+
+  // Validate UUID format
+  const uuidValidation = validateUUID(params.id);
+  if (!uuidValidation.valid) {
+    return NextResponse.json(
+      { error: 'Invalid workout ID format' },
+      { status: 400 }
+    );
+  }
+
   const authHeader = request.headers.get('authorization');
 
   if (!authHeader) {

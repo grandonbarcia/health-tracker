@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit, getClientIdentifier } from '@/lib/rateLimit';
+import { validateUUID } from '@/lib/validation';
 
 function createSupabaseClient(authHeader: string) {
   return createClient(
@@ -20,7 +22,30 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`connections-id-put:${clientId}`, {
+    maxRequests: 30,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   const { id } = await params;
+
+  // Validate UUID format
+  const uuidValidation = validateUUID(id);
+  if (!uuidValidation.valid) {
+    return NextResponse.json(
+      { error: 'Invalid connection ID format' },
+      { status: 400 }
+    );
+  }
+
   const authHeader = request.headers.get('authorization');
   if (!authHeader) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -121,7 +146,30 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`connections-id-delete:${clientId}`, {
+    maxRequests: 30,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   const { id } = await params;
+
+  // Validate UUID format
+  const uuidValidation = validateUUID(id);
+  if (!uuidValidation.valid) {
+    return NextResponse.json(
+      { error: 'Invalid connection ID format' },
+      { status: 400 }
+    );
+  }
+
   const authHeader = request.headers.get('authorization');
   if (!authHeader) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

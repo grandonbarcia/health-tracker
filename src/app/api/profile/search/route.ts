@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { UserSearchFilters } from '@/types/profile';
+import { checkRateLimit, getClientIdentifier } from '@/lib/rateLimit';
 
 function createSupabaseClient(authHeader: string) {
   return createClient(
@@ -18,6 +19,27 @@ function createSupabaseClient(authHeader: string) {
 
 // GET /api/profile/search - Search for users
 export async function GET(request: NextRequest) {
+  // Apply rate limiting - 30 requests per minute per IP
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`search:${clientId}`, {
+    maxRequests: 30,
+    windowSeconds: 60,
+  });
+
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again later.' },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rateLimit.resetIn),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': String(rateLimit.resetIn),
+        },
+      }
+    );
+  }
+
   const authHeader = request.headers.get('authorization');
   if (!authHeader) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -64,21 +86,35 @@ export async function GET(request: NextRequest) {
 
     // Apply text search if query provided
     if (query.trim()) {
-      // Use textSearch or filter approach - the % in ilike needs proper escaping
-      // Using filter method for more reliable pattern matching
+      // Sanitize query to prevent injection - escape special Postgres pattern chars
+      const sanitizedQuery = query
+        .trim()
+        .replace(/[%_*\\]/g, '\\$&') // Escape special pattern characters
+        .substring(0, 100); // Limit length
+
       dbQuery = dbQuery.or(
-        `username.ilike.*${query.trim()}*,display_name.ilike.*${query.trim()}*`
+        `username.ilike.*${sanitizedQuery}*,display_name.ilike.*${sanitizedQuery}*`
       );
     }
 
-    // Filter by primary goal
-    if (primaryGoal) {
+    // Filter by primary goal - validate against allowed values
+    const validGoals = [
+      'lose_weight',
+      'gain_muscle',
+      'maintain',
+      'improve_health',
+      'athletic_performance',
+    ];
+    if (primaryGoal && validGoals.includes(primaryGoal)) {
       dbQuery = dbQuery.eq('primary_goal', primaryGoal);
     }
 
-    // Filter by location
+    // Filter by location - sanitize input
     if (location) {
-      dbQuery = dbQuery.ilike('location', `%${location}%`);
+      const sanitizedLocation = location
+        .replace(/[%_\\]/g, '\\$&')
+        .substring(0, 100);
+      dbQuery = dbQuery.ilike('location', `%${sanitizedLocation}%`);
     }
 
     // Apply pagination

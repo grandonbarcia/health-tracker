@@ -39,11 +39,14 @@ export async function searchFoods(query: string, limit = 10) {
     return [...restaurantFoods, ...regularFoods].slice(0, limit);
   }
 
+  // Sanitize query to prevent injection
+  const sanitizedQ = q.replace(/[%_\\]/g, '\\$&').substring(0, 100);
+
   // Use ilike for simple partial matching; consider pg_trgm for better suggestions
   const { data, error } = await supabase
     .from('foods')
     .select('id,name,serving')
-    .ilike('name', `%${q}%`)
+    .ilike('name', `%${sanitizedQ}%`)
     .limit(Math.floor(limit * 0.7)); // Leave room for restaurant foods
 
   if (error) throw error;

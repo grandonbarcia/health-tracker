@@ -1,9 +1,23 @@
-import { NextResponse } from 'next/server';
-import { supabase } from '../../../lib/supabaseClient';
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { checkRateLimit, getClientIdentifier } from '../../../lib/rateLimit';
 import { validateDate } from '../../../lib/validation';
 
-export async function GET(req: Request) {
+function createSupabaseClient(authHeader: string) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    }
+  );
+}
+
+export async function GET(req: NextRequest) {
   // Rate limiting
   const clientId = getClientIdentifier(req);
   const rateLimit = checkRateLimit(`vitals:${clientId}`, {
@@ -49,10 +63,17 @@ export async function GET(req: Request) {
     }
   }
 
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const supabase = createSupabaseClient(authHeader);
+
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -84,11 +105,31 @@ export async function GET(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  // Rate limiting
+  const clientId = getClientIdentifier(req);
+  const rateLimit = checkRateLimit(`vitals-post:${clientId}`, {
+    maxRequests: 60,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const supabase = createSupabaseClient(authHeader);
+
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -98,6 +139,60 @@ export async function POST(req: Request) {
     // Validate required field
     if (!body.date) {
       return NextResponse.json({ error: 'Date is required' }, { status: 400 });
+    }
+
+    // Validate date format
+    const dateValidation = validateDate(body.date);
+    if (!dateValidation.valid) {
+      return NextResponse.json(
+        { error: dateValidation.error },
+        { status: 400 }
+      );
+    }
+
+    // Validate vital signs ranges
+    if (body.body_temperature !== undefined && body.body_temperature !== null) {
+      if (body.body_temperature < 90 || body.body_temperature > 115) {
+        return NextResponse.json(
+          { error: 'Body temperature out of valid range (90-115°F)' },
+          { status: 400 }
+        );
+      }
+    }
+    if (body.pulse_rate !== undefined && body.pulse_rate !== null) {
+      if (body.pulse_rate < 20 || body.pulse_rate > 300) {
+        return NextResponse.json(
+          { error: 'Pulse rate out of valid range (20-300 bpm)' },
+          { status: 400 }
+        );
+      }
+    }
+    if (body.systolic_bp !== undefined && body.systolic_bp !== null) {
+      if (body.systolic_bp < 60 || body.systolic_bp > 300) {
+        return NextResponse.json(
+          { error: 'Systolic BP out of valid range (60-300)' },
+          { status: 400 }
+        );
+      }
+    }
+    if (body.diastolic_bp !== undefined && body.diastolic_bp !== null) {
+      if (body.diastolic_bp < 30 || body.diastolic_bp > 200) {
+        return NextResponse.json(
+          { error: 'Diastolic BP out of valid range (30-200)' },
+          { status: 400 }
+        );
+      }
+    }
+    if (
+      body.oxygen_saturation !== undefined &&
+      body.oxygen_saturation !== null
+    ) {
+      if (body.oxygen_saturation < 50 || body.oxygen_saturation > 100) {
+        return NextResponse.json(
+          { error: 'Oxygen saturation out of valid range (50-100%)' },
+          { status: 400 }
+        );
+      }
     }
 
     // Validate blood pressure if both are provided
@@ -121,7 +216,7 @@ export async function POST(req: Request) {
         systolic_bp: body.systolic_bp,
         diastolic_bp: body.diastolic_bp,
         oxygen_saturation: body.oxygen_saturation,
-        notes: body.notes,
+        notes: body.notes?.substring(0, 1000),
         measurement_context: body.measurement_context || {},
         updated_at: new Date().toISOString(),
       })

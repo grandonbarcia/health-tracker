@@ -1,11 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '../../../../lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
+import { checkRateLimit, getClientIdentifier } from '@/lib/rateLimit';
+import { validateUUID } from '@/lib/validation';
+
+function createSupabaseClient(authHeader: string) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    }
+  );
+}
 
 // GET /api/recipes/[id] - Get specific recipe
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`recipe-get:${clientId}`, {
+    maxRequests: 60,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   try {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -15,6 +44,7 @@ export async function GET(
       );
     }
 
+    const supabase = createSupabaseClient(authHeader);
     const token = authHeader.substring(7);
     const {
       data: { user },
@@ -26,6 +56,15 @@ export async function GET(
     }
 
     const recipeId = params.id;
+
+    // Validate UUID format
+    const uuidValidation = validateUUID(recipeId);
+    if (!uuidValidation.valid) {
+      return NextResponse.json(
+        { error: 'Invalid recipe ID format' },
+        { status: 400 }
+      );
+    }
 
     // Get recipe with ingredients
     const { data: recipe, error } = await supabase
@@ -69,6 +108,19 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`recipe-put:${clientId}`, {
+    maxRequests: 30,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   try {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -78,6 +130,7 @@ export async function PUT(
       );
     }
 
+    const supabase = createSupabaseClient(authHeader);
     const token = authHeader.substring(7);
     const {
       data: { user },
@@ -89,6 +142,16 @@ export async function PUT(
     }
 
     const recipeId = params.id;
+
+    // Validate UUID format
+    const uuidValidation = validateUUID(recipeId);
+    if (!uuidValidation.valid) {
+      return NextResponse.json(
+        { error: 'Invalid recipe ID format' },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
     const { name, description, servings, ingredients } = body;
 
@@ -107,13 +170,45 @@ export async function PUT(
       );
     }
 
+    // Validate field lengths and ingredient count
+    if (name.trim().length > 200) {
+      return NextResponse.json(
+        { error: 'Recipe name too long (max 200 chars)' },
+        { status: 400 }
+      );
+    }
+    if (description && description.length > 2000) {
+      return NextResponse.json(
+        { error: 'Description too long (max 2000 chars)' },
+        { status: 400 }
+      );
+    }
+    if (ingredients.length > 100) {
+      return NextResponse.json(
+        { error: 'Too many ingredients (max 100)' },
+        { status: 400 }
+      );
+    }
+
+    // Verify user owns this recipe BEFORE modifying anything
+    const { data: existingRecipe, error: checkError } = await supabase
+      .from('user_recipes')
+      .select('id')
+      .eq('id', recipeId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (checkError || !existingRecipe) {
+      return NextResponse.json({ error: 'Recipe not found' }, { status: 404 });
+    }
+
     // Update recipe
     const { error: recipeError } = await supabase
       .from('user_recipes')
       .update({
-        name: name.trim(),
-        description: description?.trim() || '',
-        servings: servings || 1,
+        name: name.trim().substring(0, 200),
+        description: (description?.trim() || '').substring(0, 2000),
+        servings: Math.min(Math.max(1, servings || 1), 100),
       })
       .eq('id', recipeId)
       .eq('user_id', user.id);
@@ -175,6 +270,19 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`recipe-delete:${clientId}`, {
+    maxRequests: 30,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   try {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -184,6 +292,7 @@ export async function DELETE(
       );
     }
 
+    const supabase = createSupabaseClient(authHeader);
     const token = authHeader.substring(7);
     const {
       data: { user },
@@ -195,6 +304,15 @@ export async function DELETE(
     }
 
     const recipeId = params.id;
+
+    // Validate UUID format
+    const uuidValidation = validateUUID(recipeId);
+    if (!uuidValidation.valid) {
+      return NextResponse.json(
+        { error: 'Invalid recipe ID format' },
+        { status: 400 }
+      );
+    }
 
     // Delete recipe (ingredients will be deleted by cascade)
     const { error } = await supabase

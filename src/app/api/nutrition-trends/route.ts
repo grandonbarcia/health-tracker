@@ -2,9 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { combineDayMealsWithQty } from '../../../lib/nutrients';
+import { checkRateLimit, getClientIdentifier } from '@/lib/rateLimit';
 
 // GET /api/nutrition-trends - Get aggregated nutrition data for trends
 export async function GET(request: NextRequest) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`nutrition-trends:${clientId}`, {
+    maxRequests: 60,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   try {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -46,7 +60,11 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const days = parseInt(searchParams.get('days') || '30');
+    // Bound days parameter to prevent abuse (1-365 days)
+    const days = Math.min(
+      Math.max(1, parseInt(searchParams.get('days') || '30') || 30),
+      365
+    );
     const endDate =
       searchParams.get('endDate') || new Date().toISOString().split('T')[0];
 

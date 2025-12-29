@@ -116,10 +116,16 @@ export default function DietPage() {
 
       setIsSearching(true);
       try {
+        // Sanitize query to prevent injection - escape special Postgres pattern chars
+        const sanitizedQuery = searchQuery
+          .trim()
+          .replace(/[%_\\]/g, '\\$&') // Escape special pattern characters
+          .substring(0, 100); // Limit length
+
         const { data, error } = await supabase
           .from('foods')
           .select('*')
-          .or(`name.ilike.%${searchQuery}%,aliases.cs.{${searchQuery}}`)
+          .or(`name.ilike.%${sanitizedQuery}%,aliases.cs.{${sanitizedQuery}}`)
           .limit(10);
 
         if (error) throw error;

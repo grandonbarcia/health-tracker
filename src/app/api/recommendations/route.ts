@@ -5,24 +5,69 @@ import {
   generateRecommendationMessages,
   analyzeNutrientGaps,
 } from '../../../lib/recommendations';
+import { checkRateLimit, getClientIdentifier } from '@/lib/rateLimit';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function createSupabaseClient(authHeader: string) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    }
+  );
+}
 
 export async function GET(request: NextRequest) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`recommendations:${clientId}`, {
+    maxRequests: 30,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
+  // Authentication required
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const supabase = createSupabaseClient(authHeader);
+
   try {
-    // For now, we'll work without authentication
-    // TODO: Add proper authentication when user system is ready
+    const {
+      data: { user },
+    } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
+    if (!user) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
 
     const { searchParams } = new URL(request.url);
     const dayId = searchParams.get('dayId');
-    const limit = parseInt(searchParams.get('limit') || '6');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '6'), 20);
 
     if (!dayId) {
       return NextResponse.json(
         { error: 'Day ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate dayId format (UUID)
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(dayId)) {
+      return NextResponse.json(
+        { error: 'Invalid day ID format' },
         { status: 400 }
       );
     }

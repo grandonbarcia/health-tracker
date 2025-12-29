@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit, getClientIdentifier } from '@/lib/rateLimit';
+import { validateUUID } from '@/lib/validation';
 
 function createSupabaseClient(authHeader: string) {
   return createClient(
@@ -17,6 +19,19 @@ function createSupabaseClient(authHeader: string) {
 
 // GET /api/connections - Get user's connections
 export async function GET(request: NextRequest) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`connections:${clientId}`, {
+    maxRequests: 60,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   const authHeader = request.headers.get('authorization');
   if (!authHeader) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -112,6 +127,19 @@ export async function GET(request: NextRequest) {
 
 // POST /api/connections - Send connection request
 export async function POST(request: NextRequest) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`connections-post:${clientId}`, {
+    maxRequests: 30,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   const authHeader = request.headers.get('authorization');
   if (!authHeader) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -132,6 +160,15 @@ export async function POST(request: NextRequest) {
     if (!targetUserId) {
       return NextResponse.json(
         { error: 'Target user_id is required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate UUID format to prevent injection
+    const uuidValidation = validateUUID(targetUserId);
+    if (!uuidValidation.valid) {
+      return NextResponse.json(
+        { error: 'Invalid user ID format' },
         { status: 400 }
       );
     }

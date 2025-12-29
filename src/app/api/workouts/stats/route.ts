@@ -6,6 +6,7 @@ import {
   WorkoutTrend,
 } from '@/types/workouts';
 import { calculateWorkoutVolume } from '@/lib/workoutUtils';
+import { checkRateLimit, getClientIdentifier } from '@/lib/rateLimit';
 
 function createSupabaseClient(authHeader: string) {
   return createClient(
@@ -23,6 +24,19 @@ function createSupabaseClient(authHeader: string) {
 
 // GET /api/workouts/stats - Get workout statistics
 export async function GET(request: NextRequest) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`workout-stats:${clientId}`, {
+    maxRequests: 60,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   const authHeader = request.headers.get('authorization');
   if (!authHeader) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

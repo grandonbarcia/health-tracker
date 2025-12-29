@@ -7,14 +7,31 @@ import {
   RESTAURANTS,
   RESTAURANT_CATEGORIES,
 } from '../../../lib/restaurantFoods';
+import { checkRateLimit, getClientIdentifier } from '@/lib/rateLimit';
 
 export async function GET(request: NextRequest) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`restaurant-foods:${clientId}`, {
+    maxRequests: 60,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   try {
     const { searchParams } = new URL(request.url);
-    const query = searchParams.get('q') || '';
+    const query = searchParams.get('q')?.substring(0, 100) || '';
     const restaurant = searchParams.get('restaurant') || '';
     const category = searchParams.get('category') || '';
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const limit = Math.min(
+      Math.max(1, parseInt(searchParams.get('limit') || '20')),
+      100
+    );
 
     let foods = Object.values(RESTAURANT_FOODS);
 

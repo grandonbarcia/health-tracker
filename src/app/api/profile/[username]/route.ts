@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit, getClientIdentifier } from '@/lib/rateLimit';
 
 function createSupabaseClient(authHeader: string) {
   return createClient(
@@ -34,7 +35,29 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ username: string }> }
 ) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(`profile-public:${clientId}`, {
+    maxRequests: 60,
+    windowSeconds: 60,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetIn) } }
+    );
+  }
+
   const { username } = await params;
+
+  // Validate username format (max 30 chars, alphanumeric + underscores)
+  if (!username || username.length > 30 || !/^[a-zA-Z0-9_]+$/.test(username)) {
+    return NextResponse.json(
+      { error: 'Invalid username format' },
+      { status: 400 }
+    );
+  }
+
   const authHeader = request.headers.get('authorization');
 
   // Auth is optional for viewing public profiles
