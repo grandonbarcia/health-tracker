@@ -10,9 +10,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Activity, Sparkles, User, LogIn } from 'lucide-react';
+import {
+  Activity,
+  Sparkles,
+  User,
+  LogIn,
+  Users,
+  UserCircle,
+  Bell,
+} from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { ModeToggle } from '@/components/mode-toggle';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export default function Navbar() {
   const router = useRouter();
@@ -23,9 +38,25 @@ export default function Navbar() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [error, setError] = useState('');
   const [user, setUser] = useState<any>(null);
+  const [pendingCount, setPendingCount] = useState(0);
 
   // Track current user ID to prevent unnecessary re-renders
   const currentUserIdRef = useRef<string | null>(null);
+
+  // Load pending connection count
+  const loadPendingCount = async (token: string) => {
+    try {
+      const response = await fetch('/api/connections?type=pending', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPendingCount(data.pendingCount || 0);
+      }
+    } catch (error) {
+      console.error('Error loading pending count:', error);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -35,10 +66,15 @@ export default function Navbar() {
       const sessionUser = (data as any).session?.user ?? null;
       setUser(sessionUser);
       currentUserIdRef.current = sessionUser?.id || null;
+
+      // Load pending count if user is logged in
+      if (sessionUser && (data as any).session?.access_token) {
+        loadPendingCount((data as any).session.access_token);
+      }
     })();
 
     const { data: listener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         const newUser = session?.user ?? null;
         const currentUserId = currentUserIdRef.current;
         const newUserId = newUser?.id || null;
@@ -55,7 +91,12 @@ export default function Navbar() {
 
           if (event === 'SIGNED_IN' && session) {
             setIsDialogOpen(false);
+            loadPendingCount(session.access_token);
             router.push('/dashboard');
+          }
+
+          if (event === 'SIGNED_OUT') {
+            setPendingCount(0);
           }
         }
       }
@@ -130,6 +171,18 @@ export default function Navbar() {
               <ModeToggle />
               {user ? (
                 <>
+                  {/* Community Link with notification badge */}
+                  <Link href="/community" className="relative">
+                    <button className="p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                      <Users className="w-5 h-5 text-muted-foreground" />
+                      {pendingCount > 0 && (
+                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                          {pendingCount > 9 ? '9+' : pendingCount}
+                        </span>
+                      )}
+                    </button>
+                  </Link>
+
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-lg border border-green-500/20">
                     <div className="relative">
                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
@@ -139,31 +192,61 @@ export default function Navbar() {
                       Cloud Synced
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg border border-border/50">
-                    <User className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground font-medium hidden sm:inline">
-                      {user.email}
-                    </span>
-                  </div>
-                  <button
-                    onClick={signOut}
-                    className="group px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-all duration-300 flex items-center gap-1.5 hover:bg-red-500/10 rounded-lg border border-transparent hover:border-red-500/20"
-                  >
-                    <svg
-                      className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                      />
-                    </svg>
-                    <span className="hidden sm:inline">Sign Out</span>
-                  </button>
+
+                  {/* User Dropdown Menu */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg border border-border/50 hover:bg-muted transition-colors">
+                        <UserCircle className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground font-medium hidden sm:inline max-w-[120px] truncate">
+                          {user.email}
+                        </span>
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem onClick={() => router.push('/profile')}>
+                        <UserCircle className="w-4 h-4 mr-2" />
+                        My Profile
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => router.push('/community')}
+                      >
+                        <Users className="w-4 h-4 mr-2" />
+                        Community
+                        {pendingCount > 0 && (
+                          <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">
+                            {pendingCount}
+                          </span>
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => router.push('/community/connections')}
+                      >
+                        <Bell className="w-4 h-4 mr-2" />
+                        My Connections
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={signOut}
+                        className="text-red-600"
+                      >
+                        <svg
+                          className="w-4 h-4 mr-2"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                          />
+                        </svg>
+                        Sign Out
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </>
               ) : (
                 <div className="flex items-center gap-3">
