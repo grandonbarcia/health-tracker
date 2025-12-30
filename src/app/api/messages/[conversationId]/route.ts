@@ -252,6 +252,26 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const body = await request.json();
     const { content, message_type = 'text', metadata = {} } = body;
 
+    // Validate metadata
+    if (
+      typeof metadata !== 'object' ||
+      metadata === null ||
+      Array.isArray(metadata)
+    ) {
+      return NextResponse.json(
+        { error: 'Metadata must be an object' },
+        { status: 400 }
+      );
+    }
+    // Limit metadata size to prevent abuse
+    const metadataStr = JSON.stringify(metadata);
+    if (metadataStr.length > 10000) {
+      return NextResponse.json(
+        { error: 'Metadata too large (max 10KB)' },
+        { status: 400 }
+      );
+    }
+
     // Validate content
     if (!content || typeof content !== 'string') {
       return NextResponse.json(

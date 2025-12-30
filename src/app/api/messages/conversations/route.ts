@@ -218,6 +218,27 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { participant_id, initial_message } = body;
 
+    // Validate initial_message if provided
+    let sanitizedInitialMessage: string | undefined;
+    if (initial_message !== undefined) {
+      if (typeof initial_message !== 'string') {
+        return NextResponse.json(
+          { error: 'Initial message must be a string' },
+          { status: 400 }
+        );
+      }
+      const trimmed = initial_message.trim();
+      if (trimmed.length > 5000) {
+        return NextResponse.json(
+          { error: 'Initial message too long (max 5000 characters)' },
+          { status: 400 }
+        );
+      }
+      if (trimmed.length > 0) {
+        sanitizedInitialMessage = trimmed;
+      }
+    }
+
     // Validate participant_id
     if (!participant_id || !validateUUID(participant_id)) {
       return NextResponse.json(
@@ -281,11 +302,11 @@ export async function POST(request: NextRequest) {
         .single();
 
       // Send initial message if provided
-      if (initial_message && existingConv) {
+      if (sanitizedInitialMessage && existingConv) {
         await supabase.from('messages').insert({
           conversation_id: existingConv.id,
           sender_id: user.id,
-          content: initial_message,
+          content: sanitizedInitialMessage,
           message_type: 'text',
         });
       }
@@ -321,11 +342,11 @@ export async function POST(request: NextRequest) {
     if (fetchError) throw fetchError;
 
     // Send initial message if provided
-    if (initial_message) {
+    if (sanitizedInitialMessage) {
       await supabase.from('messages').insert({
         conversation_id: newConversation.id,
         sender_id: user.id,
-        content: initial_message,
+        content: sanitizedInitialMessage,
         message_type: 'text',
       });
     }
