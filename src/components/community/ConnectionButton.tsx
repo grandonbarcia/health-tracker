@@ -1,8 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { UserPlus, UserCheck, UserX, Clock, Loader2 } from 'lucide-react';
+import {
+  UserPlus,
+  UserCheck,
+  UserX,
+  Clock,
+  Loader2,
+  MessageSquare,
+} from 'lucide-react';
 
 interface ConnectionButtonProps {
   userId: string;
@@ -29,6 +37,7 @@ export function ConnectionButton({
   onRemove,
   size = 'default',
 }: ConnectionButtonProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [currentStatus, setCurrentStatus] = useState(status);
 
@@ -68,6 +77,14 @@ export function ConnectionButton({
         <Button variant="outline" size={size} disabled>
           <UserCheck className="w-4 h-4 mr-2" />
           Connected
+        </Button>
+        <Button
+          variant="secondary"
+          size={size}
+          onClick={() => router.push(`/messages?start=${userId}`)}
+          title="Send message"
+        >
+          <MessageSquare className="w-4 h-4" />
         </Button>
         {onRemove && (
           <Button

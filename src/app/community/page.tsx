@@ -6,7 +6,14 @@ import { supabase } from '@/lib/supabaseClient';
 import { UserSearch } from '@/components/community/UserSearch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Users, UserPlus, Bell } from 'lucide-react';
+import {
+  Loader2,
+  ArrowLeft,
+  Users,
+  UserPlus,
+  Bell,
+  MessageSquare,
+} from 'lucide-react';
 import Link from 'next/link';
 
 export default function CommunityPage() {
@@ -99,6 +106,12 @@ export default function CommunityPage() {
         </div>
 
         <div className="flex gap-3">
+          <Link href="/messages">
+            <Button variant="outline">
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Messages
+            </Button>
+          </Link>
           <Link href="/community/connections">
             <Button variant="outline">
               <Users className="w-4 h-4 mr-2" />

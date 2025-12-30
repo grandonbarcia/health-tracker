@@ -18,6 +18,8 @@ import {
   Users,
   UserCircle,
   Bell,
+  MessageSquare,
+  LayoutDashboard,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { ModeToggle } from '@/components/mode-toggle';
@@ -39,6 +41,7 @@ export default function Navbar() {
   const [error, setError] = useState('');
   const [user, setUser] = useState<any>(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   // Track current user ID to prevent unnecessary re-renders
   const currentUserIdRef = useRef<string | null>(null);
@@ -58,6 +61,27 @@ export default function Navbar() {
     }
   };
 
+  // Load unread messages count
+  const loadUnreadMessages = async (token: string) => {
+    try {
+      const response = await fetch('/api/messages/unread', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUnreadMessages(data.total_unread || 0);
+      }
+    } catch (error) {
+      console.error('Error loading unread messages:', error);
+    }
+  };
+
+  // Clear unread messages and navigate to messages page
+  const handleMessagesClick = () => {
+    setUnreadMessages(0);
+    router.push('/messages');
+  };
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -67,9 +91,10 @@ export default function Navbar() {
       setUser(sessionUser);
       currentUserIdRef.current = sessionUser?.id || null;
 
-      // Load pending count if user is logged in
+      // Load pending count and unread messages if user is logged in
       if (sessionUser && (data as any).session?.access_token) {
         loadPendingCount((data as any).session.access_token);
+        loadUnreadMessages((data as any).session.access_token);
       }
     })();
 
@@ -92,11 +117,13 @@ export default function Navbar() {
           if (event === 'SIGNED_IN' && session) {
             setIsDialogOpen(false);
             loadPendingCount(session.access_token);
+            loadUnreadMessages(session.access_token);
             router.push('/dashboard');
           }
 
           if (event === 'SIGNED_OUT') {
             setPendingCount(0);
+            setUnreadMessages(0);
           }
         }
       }
@@ -171,6 +198,13 @@ export default function Navbar() {
               <ModeToggle />
               {user ? (
                 <>
+                  {/* Dashboard Link */}
+                  <Link href="/dashboard">
+                    <button className="p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                      <LayoutDashboard className="w-5 h-5 text-muted-foreground" />
+                    </button>
+                  </Link>
+
                   {/* Community Link with notification badge */}
                   <Link href="/community" className="relative">
                     <button className="p-2 rounded-lg hover:bg-muted/50 transition-colors">
@@ -182,6 +216,19 @@ export default function Navbar() {
                       )}
                     </button>
                   </Link>
+
+                  {/* Messages Link with unread badge */}
+                  <button
+                    onClick={handleMessagesClick}
+                    className="relative p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                  >
+                    <MessageSquare className="w-5 h-5 text-muted-foreground" />
+                    {unreadMessages > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                        {unreadMessages > 9 ? '9+' : unreadMessages}
+                      </span>
+                    )}
+                  </button>
 
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-lg border border-green-500/20">
                     <div className="relative">
@@ -204,6 +251,12 @@ export default function Navbar() {
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem
+                        onClick={() => router.push('/dashboard')}
+                      >
+                        <LayoutDashboard className="w-4 h-4 mr-2" />
+                        Dashboard
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => router.push('/profile')}>
                         <UserCircle className="w-4 h-4 mr-2" />
                         My Profile
@@ -224,6 +277,15 @@ export default function Navbar() {
                       >
                         <Bell className="w-4 h-4 mr-2" />
                         My Connections
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleMessagesClick}>
+                        <MessageSquare className="w-4 h-4 mr-2" />
+                        Messages
+                        {unreadMessages > 0 && (
+                          <span className="ml-auto px-2 py-0.5 bg-primary text-primary-foreground text-xs rounded-full">
+                            {unreadMessages}
+                          </span>
+                        )}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
