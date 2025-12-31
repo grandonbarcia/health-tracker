@@ -430,9 +430,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-4 gap-8 max-w-6xl mx-auto">
             <div>
-              <h3 className="text-white font-bold text-lg mb-4">
-                Health Tracker
-              </h3>
+              <h3 className="text-white font-bold text-lg mb-4">Thryve</h3>
               <p className="text-sm leading-relaxed">
                 Your personal nutrition companion for a healthier lifestyle.
               </p>
@@ -512,7 +510,7 @@ export default function LandingPage() {
           </div>
 
           <div className="border-t border-slate-800 dark:border-slate-900 mt-12 pt-8 text-center text-sm">
-            <p>© 2025 Health Tracker. All rights reserved.</p>
+            <p>© 2025 Thryve. All rights reserved.</p>
           </div>
         </div>
       </footer>

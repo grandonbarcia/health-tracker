@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Health Tracker',
+  title: 'Thryve',
   description: 'Track your nutrition and transform your health',
 };
 

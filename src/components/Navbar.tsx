@@ -185,7 +185,7 @@ export default function Navbar() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-green-600 via-purple-600 to-blue-600 dark:from-green-400 dark:via-purple-400 dark:to-blue-400 bg-clip-text text-transparent">
-                  Health Tracker
+                  Thryve
                 </h1>
                 <p className="text-xs text-muted-foreground font-medium">
                   Your Complete Wellness Dashboard
