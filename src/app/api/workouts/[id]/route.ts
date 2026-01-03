@@ -200,6 +200,9 @@ export async function PUT(
       return NextResponse.json({ error: 'Workout not found' }, { status: 404 });
     }
 
+    const workoutNotes =
+      typeof body.notes === 'string' ? body.notes.substring(0, 1000) : '';
+
     // Update workout
     const { data: workout, error: workoutError } = await supabase
       .from('user_workouts')
@@ -207,7 +210,7 @@ export async function PUT(
         date: body.date,
         workout_name: body.workout_name,
         duration_minutes: body.duration_minutes,
-        notes: body.notes,
+        notes: workoutNotes,
       })
       .eq('id', params.id)
       .select()
@@ -242,7 +245,10 @@ export async function PUT(
       sets: exercise.sets,
       reps_per_set: exercise.reps_per_set,
       weight_lbs: exercise.weight_lbs,
-      notes: exercise.notes,
+      notes:
+        typeof exercise.notes === 'string'
+          ? exercise.notes.substring(0, 1000)
+          : '',
       order_index: exercise.order_index ?? index,
     }));
 

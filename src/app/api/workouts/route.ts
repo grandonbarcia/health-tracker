@@ -156,6 +156,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
+    const workoutNotes =
+      typeof body.notes === 'string' ? body.notes.substring(0, 1000) : '';
+
     // Insert workout
     const { data: workout, error: workoutError } = await supabase
       .from('user_workouts')
@@ -164,7 +167,7 @@ export async function POST(request: NextRequest) {
         date: body.date,
         workout_name: body.workout_name,
         duration_minutes: body.duration_minutes,
-        notes: body.notes,
+        notes: workoutNotes,
       })
       .select()
       .single();
@@ -184,7 +187,10 @@ export async function POST(request: NextRequest) {
       sets: exercise.sets,
       reps_per_set: exercise.reps_per_set,
       weight_lbs: exercise.weight_lbs,
-      notes: exercise.notes,
+      notes:
+        typeof exercise.notes === 'string'
+          ? exercise.notes.substring(0, 1000)
+          : '',
       order_index: exercise.order_index ?? index,
     }));
 

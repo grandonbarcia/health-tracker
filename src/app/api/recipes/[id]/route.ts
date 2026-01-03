@@ -20,7 +20,7 @@ function createSupabaseClient(authHeader: string) {
 // GET /api/recipes/[id] - Get specific recipe
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  segmentData: { params: Promise<{ id: string }> }
 ) {
   // Rate limiting
   const clientId = getClientIdentifier(request);
@@ -36,7 +36,7 @@ export async function GET(
   }
 
   try {
-    const authHeader = request.headers.get('Authorization');
+    const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json(
         { error: 'No authorization header' },
@@ -45,17 +45,16 @@ export async function GET(
     }
 
     const supabase = createSupabaseClient(authHeader);
-    const token = authHeader.substring(7);
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser(token);
+    } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    const recipeId = params.id;
+    const { id: recipeId } = await segmentData.params;
 
     // Validate UUID format
     const uuidValidation = validateUUID(recipeId);
@@ -106,7 +105,7 @@ export async function GET(
 // PUT /api/recipes/[id] - Update recipe
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  segmentData: { params: Promise<{ id: string }> }
 ) {
   // Rate limiting
   const clientId = getClientIdentifier(request);
@@ -122,7 +121,7 @@ export async function PUT(
   }
 
   try {
-    const authHeader = request.headers.get('Authorization');
+    const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json(
         { error: 'No authorization header' },
@@ -131,17 +130,16 @@ export async function PUT(
     }
 
     const supabase = createSupabaseClient(authHeader);
-    const token = authHeader.substring(7);
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser(token);
+    } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    const recipeId = params.id;
+    const { id: recipeId } = await segmentData.params;
 
     // Validate UUID format
     const uuidValidation = validateUUID(recipeId);
@@ -268,7 +266,7 @@ export async function PUT(
 // DELETE /api/recipes/[id] - Delete recipe
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  segmentData: { params: Promise<{ id: string }> }
 ) {
   // Rate limiting
   const clientId = getClientIdentifier(request);
@@ -284,7 +282,7 @@ export async function DELETE(
   }
 
   try {
-    const authHeader = request.headers.get('Authorization');
+    const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json(
         { error: 'No authorization header' },
@@ -293,17 +291,16 @@ export async function DELETE(
     }
 
     const supabase = createSupabaseClient(authHeader);
-    const token = authHeader.substring(7);
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser(token);
+    } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    const recipeId = params.id;
+    const { id: recipeId } = await segmentData.params;
 
     // Validate UUID format
     const uuidValidation = validateUUID(recipeId);

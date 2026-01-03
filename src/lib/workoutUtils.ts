@@ -243,6 +243,18 @@ export function validateWorkout(workout: WorkoutInput): {
     }
   }
 
+  if (workout.notes !== undefined && workout.notes !== null) {
+    if (typeof workout.notes !== 'string') {
+      return { valid: false, error: 'Workout notes must be a string' };
+    }
+    if (workout.notes.length > 1000) {
+      return {
+        valid: false,
+        error: 'Workout notes must be at most 1000 characters',
+      };
+    }
+  }
+
   if (!workout.exercises || workout.exercises.length === 0) {
     return { valid: false, error: 'At least one exercise is required' };
   }
@@ -314,6 +326,21 @@ export function validateExercise(
       return {
         valid: false,
         error: `Exercise ${index}: Weight must be between 0 and 2000 lbs`,
+      };
+    }
+  }
+
+  if (exercise.notes !== undefined && exercise.notes !== null) {
+    if (typeof exercise.notes !== 'string') {
+      return {
+        valid: false,
+        error: `Exercise ${index}: Notes must be a string`,
+      };
+    }
+    if (exercise.notes.length > 1000) {
+      return {
+        valid: false,
+        error: `Exercise ${index}: Notes must be at most 1000 characters`,
       };
     }
   }

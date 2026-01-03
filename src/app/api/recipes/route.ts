@@ -1,6 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '../../../lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
 import { checkRateLimit, getClientIdentifier } from '@/lib/rateLimit';
+
+function createSupabaseClient(authHeader: string) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    }
+  );
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
 
 // GET /api/recipes - List user's recipes
 export async function GET(request: NextRequest) {
@@ -18,19 +36,16 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const authHeader = request.headers.get('Authorization');
+    const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json(
-        { error: 'No authorization header' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const token = authHeader.substring(7);
+    const supabase = createSupabaseClient(authHeader);
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser(token);
+    } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
@@ -78,19 +93,16 @@ export async function GET(request: NextRequest) {
 // POST /api/recipes - Create new recipe
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('Authorization');
+    const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json(
-        { error: 'No authorization header' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const token = authHeader.substring(7);
+    const supabase = createSupabaseClient(authHeader);
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser(token);
+    } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
@@ -99,10 +111,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, description, servings, ingredients } = body;
 
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
+    const trimmedDescription =
+      typeof description === 'string' ? description.trim() : '';
+
     // Validate required fields
     if (
-      !name ||
-      !ingredients ||
+      !trimmedName ||
       !Array.isArray(ingredients) ||
       ingredients.length === 0
     ) {
@@ -114,14 +129,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (trimmedName.length > 100) {
+      return NextResponse.json(
+        { error: 'Recipe name must be at most 100 characters' },
+        { status: 400 }
+      );
+    }
+
+    if (trimmedDescription.length > 1000) {
+      return NextResponse.json(
+        { error: 'Description must be at most 1000 characters' },
+        { status: 400 }
+      );
+    }
+
+    let servingsInt = 1;
+    if (servings !== undefined && servings !== null) {
+      if (!isFiniteNumber(servings)) {
+        return NextResponse.json(
+          { error: 'Servings must be a number' },
+          { status: 400 }
+        );
+      }
+      servingsInt = Math.round(servings);
+    }
+    if (servingsInt < 1 || servingsInt > 1000) {
+      return NextResponse.json(
+        { error: 'Servings must be between 1 and 1000' },
+        { status: 400 }
+      );
+    }
+
+    if (ingredients.length > 200) {
+      return NextResponse.json(
+        { error: 'Too many ingredients (max 200)' },
+        { status: 400 }
+      );
+    }
+
     // Create recipe
     const { data: recipe, error: recipeError } = await supabase
       .from('user_recipes')
       .insert({
         user_id: user.id,
-        name: name.trim(),
-        description: description?.trim() || '',
-        servings: servings || 1,
+        name: trimmedName,
+        description: trimmedDescription,
+        servings: servingsInt,
       })
       .select()
       .single();
@@ -134,13 +187,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create recipe ingredients
-    const ingredientInserts = ingredients.map((ingredient: any) => ({
-      recipe_id: recipe.id,
-      food_id: ingredient.food_id,
-      quantity: ingredient.quantity,
-      food_type: ingredient.food_type || 'regular',
-    }));
+    // Create recipe ingredients (validate each ingredient)
+    const ingredientInserts = ingredients.map(
+      (ingredient: any, index: number) => {
+        const foodId =
+          typeof ingredient?.food_id === 'string'
+            ? ingredient.food_id.trim()
+            : '';
+        if (!foodId || foodId.length > 128) {
+          throw new Error(`Ingredient ${index + 1}: invalid food_id`);
+        }
+
+        const qty = ingredient?.quantity;
+        if (!isFiniteNumber(qty) || qty <= 0 || qty > 10000) {
+          throw new Error(`Ingredient ${index + 1}: invalid quantity`);
+        }
+
+        const foodType = ingredient?.food_type;
+        const normalizedType =
+          foodType === 'restaurant' || foodType === 'regular'
+            ? foodType
+            : 'regular';
+
+        return {
+          recipe_id: recipe.id,
+          food_id: foodId,
+          quantity: qty,
+          food_type: normalizedType,
+        };
+      }
+    );
 
     const { error: ingredientsError } = await supabase
       .from('recipe_ingredients')

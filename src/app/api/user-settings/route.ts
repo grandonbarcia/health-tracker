@@ -119,10 +119,72 @@ export async function PUT(request: NextRequest) {
 
     const updates = await request.json();
 
+    // Whitelist + validate to prevent mass-assignment of unexpected columns
+    const sanitized: Record<string, any> = {};
+
+    const clampInt = (
+      value: unknown,
+      min: number,
+      max: number
+    ): number | undefined => {
+      if (typeof value !== 'number' || !Number.isFinite(value))
+        return undefined;
+      const asInt = Math.round(value);
+      if (asInt < min || asInt > max) return undefined;
+      return asInt;
+    };
+
+    // Numeric goals
+    const dailyCalories = clampInt(updates?.daily_calories, 800, 5000);
+    if (dailyCalories !== undefined) sanitized.daily_calories = dailyCalories;
+
+    const dailyProtein = clampInt(updates?.daily_protein, 0, 500);
+    if (dailyProtein !== undefined) sanitized.daily_protein = dailyProtein;
+
+    const dailyCarbs = clampInt(updates?.daily_carbs, 0, 1000);
+    if (dailyCarbs !== undefined) sanitized.daily_carbs = dailyCarbs;
+
+    const dailyFat = clampInt(updates?.daily_fat, 0, 300);
+    if (dailyFat !== undefined) sanitized.daily_fat = dailyFat;
+
+    const dailyFiber = clampInt(updates?.daily_fiber, 0, 100);
+    if (dailyFiber !== undefined) sanitized.daily_fiber = dailyFiber;
+
+    const dailySodium = clampInt(updates?.daily_sodium, 0, 10000);
+    if (dailySodium !== undefined) sanitized.daily_sodium = dailySodium;
+
+    // Enums
+    const weightGoal = updates?.weight_goal;
+    if (
+      weightGoal === 'lose' ||
+      weightGoal === 'maintain' ||
+      weightGoal === 'gain'
+    ) {
+      sanitized.weight_goal = weightGoal;
+    }
+
+    const activityLevel = updates?.activity_level;
+    if (
+      activityLevel === 'sedentary' ||
+      activityLevel === 'light' ||
+      activityLevel === 'moderate' ||
+      activityLevel === 'active' ||
+      activityLevel === 'very_active'
+    ) {
+      sanitized.activity_level = activityLevel;
+    }
+
+    if (Object.keys(sanitized).length === 0) {
+      return NextResponse.json(
+        { error: 'No valid settings provided' },
+        { status: 400 }
+      );
+    }
+
     const { data, error } = await supabase
       .from('user_settings')
       .update({
-        ...updates,
+        ...sanitized,
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', user.id)
@@ -134,7 +196,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({
         success: true,
         note: 'Settings saved locally until database table is created',
-        ...updates,
+        ...sanitized,
       });
     } else if (error) {
       throw error;

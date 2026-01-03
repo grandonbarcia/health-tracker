@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Thermometer, Activity, Heart, Wind, X } from 'lucide-react';
 import { VitalSignsInput, TimeOfDay } from '../types/vitalSigns';
+import { supabase } from '../lib/supabaseClient';
 import {
   validateVitalSign,
   validateBloodPressure,
@@ -179,6 +180,13 @@ export default function VitalSignsEntry({
     setLoading(true);
 
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('You must be logged in to save vital signs');
+      }
+
       const url = editingRecord
         ? `/api/vital-signs/${editingRecord.id}`
         : '/api/vital-signs';
@@ -187,7 +195,10 @@ export default function VitalSignsEntry({
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify(formData),
       });
 
@@ -399,6 +410,7 @@ export default function VitalSignsEntry({
                 onChange={(e) => handleInputChange('notes', e.target.value)}
                 placeholder="Add any relevant context (e.g., after exercise, feeling stressed, etc.)"
                 rows={2}
+                maxLength={1000}
                 className="w-full border border-border rounded-lg px-3 py-2 bg-background text-foreground"
               />
             </div>

@@ -263,6 +263,7 @@ export default function WorkoutEntry({
                 onChange={(e) => setWorkoutName(e.target.value)}
                 placeholder="e.g., Push Day, Leg Day"
                 list="workout-names"
+                maxLength={100}
                 className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg placeholder-muted-foreground"
                 required
               />
@@ -416,6 +417,7 @@ export default function WorkoutEntry({
                               )
                             }
                             placeholder="Optional notes"
+                            maxLength={1000}
                             className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg text-sm placeholder-muted-foreground"
                           />
                         </div>
@@ -449,6 +451,7 @@ export default function WorkoutEntry({
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="How did you feel? Any observations?"
                 rows={3}
+                maxLength={1000}
                 className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-lg resize-none placeholder-muted-foreground"
               />
             </div>

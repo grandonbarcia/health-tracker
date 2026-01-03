@@ -564,11 +564,27 @@ export default function ExercisePage() {
         return;
       }
 
+      const goalName = goalFormData.goalName.trim();
+      const targetValue = parseInt(goalFormData.targetValue);
+
+      if (!goalName || goalName.length > 100) {
+        alert('Please enter a goal name (max 100 characters)');
+        return;
+      }
+      if (
+        !Number.isFinite(targetValue) ||
+        targetValue <= 0 ||
+        targetValue > 1000000
+      ) {
+        alert('Please enter a valid target value');
+        return;
+      }
+
       const { error } = await supabase.from('user_exercise_goals').insert({
         user_id: user.id,
         goal_type: goalFormData.goalType,
-        goal_name: goalFormData.goalName,
-        target_value: parseInt(goalFormData.targetValue),
+        goal_name: goalName,
+        target_value: targetValue,
         time_period: goalFormData.timePeriod,
         is_active: true,
       });
@@ -641,6 +657,10 @@ export default function ExercisePage() {
       }
 
       const stepCount = parseInt(stepsFormData.steps);
+      if (!Number.isFinite(stepCount) || stepCount < 0 || stepCount > 200000) {
+        alert('Please enter a valid step count');
+        return;
+      }
 
       // Check if entry exists for this date
       const { data: existing } = await supabase
@@ -736,6 +756,22 @@ export default function ExercisePage() {
         return;
       }
 
+      const duration = parseInt(formData.duration);
+      if (!Number.isFinite(duration) || duration <= 0 || duration > 600) {
+        alert('Please enter a valid duration (1-600 minutes)');
+        return;
+      }
+
+      const calories = formData.calories ? parseInt(formData.calories) : null;
+      if (calories !== null) {
+        if (!Number.isFinite(calories) || calories < 0 || calories > 10000) {
+          alert('Please enter a valid calories value');
+          return;
+        }
+      }
+
+      const notes = (formData.notes || '').trim().slice(0, 1000);
+
       // Insert workout
       const { data: workout, error: workoutError } = await supabase
         .from('user_workouts')
@@ -743,11 +779,9 @@ export default function ExercisePage() {
           user_id: user.id,
           workout_date: formData.workoutDate,
           workout_type: formData.workoutType,
-          duration_minutes: parseInt(formData.duration),
-          calories_burned: formData.calories
-            ? parseInt(formData.calories)
-            : null,
-          notes: formData.notes || null,
+          duration_minutes: duration,
+          calories_burned: calories,
+          notes: notes || null,
         })
         .select()
         .single();
@@ -760,7 +794,7 @@ export default function ExercisePage() {
           .filter((ex) => ex.name.trim())
           .map((ex, index) => ({
             workout_id: workout.id,
-            exercise_name: ex.name,
+            exercise_name: ex.name.trim().slice(0, 100),
             sets: ex.sets ? parseInt(ex.sets) : null,
             reps: ex.reps ? parseInt(ex.reps) : null,
             weight: ex.weight ? parseFloat(ex.weight) : null,
