@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { Suspense, useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import {
@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
-export default function MessagesPage() {
+function MessagesPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const conversationIdParam = searchParams.get('conversation');
@@ -237,7 +237,6 @@ export default function MessagesPage() {
       setSending(false);
     }
   };
-
   const handleLoadMore = () => {
     if (selectedConversation && nextCursor) {
       loadMessages(selectedConversation.id, nextCursor);
@@ -389,5 +388,19 @@ export default function MessagesPage() {
         onSelectUser={handleNewConversation}
       />
     </div>
+  );
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin" />
+        </div>
+      }
+    >
+      <MessagesPageInner />
+    </Suspense>
   );
 }
