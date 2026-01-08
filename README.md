@@ -60,6 +60,25 @@ Signup uses `emailRedirectTo: <origin>/auth/callback`, so your Supabase project 
 
 Also add your deployed site callback URL when deploying.
 
+### GitHub OAuth (Supabase)
+
+This app supports GitHub sign-in via Supabase OAuth.
+
+1. In Supabase: **Authentication → Providers → GitHub**
+
+   - Enable GitHub
+   - Paste your GitHub OAuth app **Client ID** and **Client Secret**
+
+2. In GitHub: create an OAuth App
+
+   - Homepage URL: `http://localhost:3000` (for local dev)
+   - Authorization callback URL: `https://<YOUR_SUPABASE_PROJECT>.supabase.co/auth/v1/callback`
+
+3. In Supabase: **Authentication → URL Configuration**
+   - Add these redirect URLs:
+     - `http://localhost:3000/auth/callback`
+     - `https://<your-production-domain>/auth/callback`
+
 ### Database setup (Supabase)
 
 This repo expects several Postgres tables. The fastest path is:

@@ -11,6 +11,7 @@ import {
   Lock,
   Eye,
   EyeOff,
+  Github,
   Sparkles,
 } from 'lucide-react';
 
@@ -45,6 +46,34 @@ export default function AuthPage() {
     };
     checkUser();
   }, [router, supabase.auth]);
+
+  const handleGitHubSignIn = async () => {
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'github',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) throw error;
+
+      setMessage({
+        type: 'success',
+        text: 'Redirecting to GitHub...',
+      });
+      // On success, Supabase will redirect the browser to GitHub.
+    } catch (error: any) {
+      setMessage({
+        type: 'error',
+        text: error.message || 'Failed to sign in with GitHub.',
+      });
+      setLoading(false);
+    }
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -317,6 +346,24 @@ export default function AuthPage() {
                 )}
               </button>
             </form>
+
+            {/* OAuth */}
+            <div className="mt-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-px flex-1 bg-border/50" />
+                <span className="text-xs text-muted-foreground">or</span>
+                <div className="h-px flex-1 bg-border/50" />
+              </div>
+              <button
+                type="button"
+                onClick={handleGitHubSignIn}
+                disabled={loading}
+                className="w-full py-3 rounded-lg border border-border/50 hover:bg-muted/50 font-medium transition-all duration-300 hover:scale-105 active:scale-95 text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
+              >
+                <Github className="w-5 h-5" />
+                Continue with GitHub
+              </button>
+            </div>
 
             {/* Toggle Sign In/Sign Up */}
             <div className="mt-6 text-center">
